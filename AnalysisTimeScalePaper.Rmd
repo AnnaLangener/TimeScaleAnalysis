@@ -1,0 +1,633 @@
+
+```{r setup, include=FALSE}
+library(sjPlot)
+library(jtools)
+library(nlme)
+library(dplyr)
+library(ggplot2)
+library(lme4)
+library(dotwhisker)
+library(ggpubr)
+library(stargazer)
+
+
+PerStudy <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerStudy.csv")
+PerWeek <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerWeek.csv")
+PerDay <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerDay.csv")
+PerHour <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerHour.csv")
+
+to_analyze <- read.csv("/Users/annalangener/Google Drive/PhD Wellbeing/to_analyse.csv")
+to_analyze <- to_analyze[,colnames(to_analyze) %in% c("BEHAPP_ID","SFS","Loneliness")]
+
+PerStudy <- left_join(PerStudy, to_analyze, by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+PerWeek <- left_join(PerWeek, to_analyze, by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+PerDay <- left_join(PerDay, to_analyze, by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+PerHour <- left_join(PerHour, to_analyze, by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+
+set.seed(12361488)
+train_ind <- sample(PerStudy$ParticipantNumber, size = 0.7*nrow(PerStudy))
+
+PerHourtrain <- PerHour[PerHour$ParticipantNumber %in% train_ind, ]
+PerHourtest <- PerHour[!PerHour$ParticipantNumber %in% train_ind, ]
+
+PerDaytrain <- PerDay[PerDay$ParticipantNumber %in% train_ind, ]
+PerDaytest <- PerDay[!PerDay$ParticipantNumber %in% train_ind, ]
+
+PerWeektrain <- PerWeek[PerWeek$ParticipantNumber %in% train_ind, ]
+PerWeektest <- PerWeek[!PerWeek$ParticipantNumber %in% train_ind, ]
+
+PerStudytrain <- PerStudy[PerStudy$ParticipantNumber %in% train_ind, ]
+PerStudytest <- PerStudy[!PerStudy$ParticipantNumber %in% train_ind, ]
+
+
+# NA not replaced
+PerHourNA <- PerHour
+PerHourNA[is.na(PerHourNA)] <- 0
+PerDayNA <- PerDay
+PerDayNA[is.na(PerDayNA)] <- 0
+PerWeekNA <- PerWeek
+PerWeekNA[is.na(PerWeekNA)] <- 0
+PerStudyNA <- PerStudy
+PerStudyNA[is.na(PerStudyNA)] <- 0
+
+```
+
+
+### Correlations
+0.1 Small
+0.3 Moderate
+0.5 Large
+
+Cohen's (1988)
+```{r echo=FALSE}
+Correlation <- data.frame(Correlation = cor.test(PerHour[,"HOME"],PerHour$SFS)$estimate, p.value = round(cor.test(PerHour[,"HOME"],PerHour$SFS)$p.value,2), Feature = "HOME", Time = "Per Hour")
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(PerDay[,"HOME"],PerDay$SFS)$estimate, p.value = round(cor.test(PerDay[,"HOME"],PerDay$SFS)$p.value,2), Feature = "HOME", Time = "Per Day"))
+
+Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerWeek[,"HOME"],PerWeek$SFS)$estimate, p.value = round(cor.test(PerWeek[,"HOME"],PerWeek$SFS)$p.value,2), Feature = "HOME", Time = "Per Week"))
+
+Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerStudy[,"HOME"],PerStudy$SFS)$estimate, p.value = round(cor.test(PerStudy[,"HOME"],PerStudy$SFS)$p.value,2), Feature = "HOME", Time = "Per Study"))
+
+Features <- c("TotalMinutes", "COMMUNICATION", "SOCIAL", "NumberOpened", "UniqueNumber", "TimeStationary")
+
+for(i in 1:length(Features)){
+  Correlation <- rbind(Correlation,data.frame(Correlation = cor.test(PerHour[,Features[i]],PerHour$SFS)$estimate, p.value = round(cor.test(PerHour[,Features[i]],PerHour$SFS)$p.value,2), Feature = Features[i], Time = "Per Hour"))
+  
+  Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerDay[,Features[i]],PerDay$SFS)$estimate, p.value = round(cor.test(PerDay[,Features[i]],PerDay$SFS)$p.value,2), Feature = Features[i], Time = "Per Day"))
+
+Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerWeek[,Features[i]],PerWeek$SFS)$estimate, p.value = round(cor.test(PerWeek[,Features[i]],PerWeek$SFS)$p.value,2), Feature = Features[i], Time = "Per Week"))
+
+Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerStudy[,Features[i]],PerStudy$SFS)$estimate, p.value = round(cor.test(PerStudy[,Features[i]],PerStudy$SFS)$p.value,2), Feature = Features[i], Time = "Per Study"))
+
+}
+```
+
+```{r echo=FALSE}
+Correlation <- data.frame(Correlation = cor.test(PerHour[,"HOME"],PerHour$LONELINESS)$estimate, p.value = round(cor.test(PerHour[,"HOME"],PerHour$LONELINESS)$p.value,2), Feature = "HOME", Time = "Per Hour")
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(PerDay[,"HOME"],PerDay$LONELINESS)$estimate, p.value = round(cor.test(PerDay[,"HOME"],PerDay$LONELINESS)$p.value,2), Feature = "HOME", Time = "Per Day"))
+
+Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerWeek[,"HOME"],PerWeek$LONELINESS)$estimate, p.value = round(cor.test(PerWeek[,"HOME"],PerWeek$LONELINESS)$p.value,2), Feature = "HOME", Time = "Per Week"))
+
+Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerStudy[,"HOME"],PerStudy$LONELINESS)$estimate, p.value = round(cor.test(PerStudy[,"HOME"],PerStudy$LONELINESS)$p.value,2), Feature = "HOME", Time = "Per Study"))
+
+Features <- c("TotalMinutes", "COMMUNICATION", "SOCIAL", "NumberOpened", "HOME", "UniqueNumber", "TimeStationary")
+
+for(i in 1:length(Features)){
+  Correlation <- rbind(Correlation,data.frame(Correlation = cor.test(PerHour[,Features[i]],PerHour$LONELINESS)$estimate, p.value = round(cor.test(PerHour[,Features[i]],PerHour$LONELINESS)$p.value,2), Feature = Features[i], Time = "Per Hour"))
+  
+  Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerDay[,Features[i]],PerDay$LONELINESS)$estimate, p.value = round(cor.test(PerDay[,Features[i]],PerDay$LONELINESS)$p.value,2), Feature = Features[i], Time = "Per Day"))
+
+Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerWeek[,Features[i]],PerWeek$LONELINESS)$estimate, p.value = round(cor.test(PerWeek[,Features[i]],PerWeek$LONELINESS)$p.value,2), Feature = Features[i], Time = "Per Week"))
+
+Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerStudy[,Features[i]],PerStudy$LONELINESS)$estimate, p.value = round(cor.test(PerStudy[,Features[i]],PerStudy$LONELINESS)$p.value,2), Feature = Features[i], Time = "Per Study"))
+
+}
+```
+
+
+
+```{r echo=FALSE}
+### Being Home & Unique Number of Places Visited
+
+#Correlation <- merge(CorPerHour,CorPerDay, by = "ParticipantNumber")
+#Correlation <- merge(Correlation,CorPerWeek, by = "ParticipantNumber")
+
+CorrelationSFS <- function(Feature){
+
+
+print(cor.test(PerHour[,Feature],PerHour$SFS))
+print(cor.test(PerDay[,Feature],PerDay$SFS))
+print(cor.test(PerWeek[,Feature],PerWeek$SFS))
+print(cor.test(PerStudy[,Feature],PerStudy$SFS))
+
+print(cor.test(PerHourNA[,Feature],PerHourNA$SFS))
+print(cor.test(PerDayNA[,Feature],PerDayNA$SFS))
+print(cor.test(PerWeekNA[,Feature],PerWeekNA$SFS))
+print(cor.test(PerStudyNA[,Feature],PerStudyNA$SFS))
+
+plot1 <- ggplot() +
+  geom_hline(yintercept=as.numeric(cor.test(PerHour[,Feature],PerHour$SFS)$estimate), linetype="dashed", color = "#0B3C69")  +
+  geom_hline(yintercept=as.numeric(cor.test(PerDay[,Feature],PerDay$SFS)$estimate), linetype="dashed", color = "#708FF9") +
+  geom_hline(yintercept=as.numeric(cor.test(PerWeek[,Feature],PerWeek$SFS)$estimate), linetype="dashed", color = "#FFCD3C") +
+  geom_hline(yintercept=as.numeric(cor.test(PerStudy[,Feature],PerStudy$SFS)$estimate), linetype="dashed", color = "#FF5733") +
+  ylab(element_blank()) +
+  xlab("Participants") +
+  scale_color_manual(name = "Resolution", values = c("Per Hour" = "#0B3C69", "Per Day" = "#708FF9", "Per Week" = "#FFCD3C"))+
+  theme_minimal() +
+  theme(axis.text.x=element_blank(), panel.grid.minor.y = element_blank()) +
+  ggtitle("Excluding missing values") +
+  ylim(-1,1)
+
+### Without removing NA
+
+
+plot2 <- ggplot() +
+  geom_hline(yintercept=as.numeric(cor.test(PerHourNA[,Feature],PerHourNA$SFS)$estimate), linetype="dashed", color = "#0B3C69")  +
+   geom_hline(yintercept=as.numeric(cor.test(PerDayNA[,Feature],PerDayNA$SFS)$estimate), linetype="dashed", color = "#708FF9") +
+  geom_hline(yintercept=as.numeric(cor.test(PerWeekNA[,Feature],PerWeekNA$SFS)$estimate), linetype="dashed", color = "#FFCD3C") +
+  geom_hline(yintercept=as.numeric(cor.test(PerStudyNA[,Feature],PerStudyNA$SFS)$estimate), linetype="dashed", color = "#FF5733") +
+  ylab(element_blank()) +
+  xlab("Participants") +
+  scale_color_manual(name = "Resolution", values = c("Per Hour" = "#0B3C69", "Per Day" = "#708FF9", "Per Week" = "#FFCD3C")) +
+  theme_minimal() +
+  theme(axis.text.x=element_blank(), panel.grid.minor.y = element_blank()) +
+  ggtitle("Including missing values") +
+  ylim(-1,1)
+
+plot <- ggarrange(plot1,plot2, common.legend = TRUE)
+
+plot <- annotate_figure(plot, top = text_grob("Correlation:SFS)",color = "black", size = 14))
+
+return(plot)
+}
+```
+
+
+
+
+## Associations between Features
+```{r echo=FALSE}
+Feature <- c("HOME", "UniqueNumber")
+### Being Home & Unique Number of Places Visited
+CorPerHour = PerHour %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(as.formula(paste("~",Feature[1], "+",Feature[2])))$estimate),p.value=round(cor.test(as.formula(paste("~",Feature[1], "+",Feature[2])))$p.value,2)) %>% as.data.frame()
+
+CorPerHour <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerHour[,Feature[1]],PerHour[,Feature[2]])$estimate), "p.value" = round(cor.test(PerHour[,Feature[1]],PerHour[,Feature[2]])$p.value)), CorPerHour)
+
+CorPerDay = PerDay %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(as.formula(paste("~",Feature[1], "+",Feature[2])))$estimate),p.value=round(cor.test(as.formula(paste("~",Feature[1], "+",Feature[2])))$p.value,2)) %>% as.data.frame()
+
+CorPerDay <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerDay[,Feature[1]],PerDay[,Feature[2]])$estimate), "p.value" = round(cor.test(PerDay[,Feature[1]],PerDay[,Feature[2]])$p.value)), CorPerDay)
+
+CorPerWeek = PerWeek %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(as.formula(paste("~",Feature[1], "+",Feature[2])))$estimate),p.value=round(cor.test(as.formula(paste("~",Feature[1], "+",Feature[2])))$p.value,2)) %>% as.data.frame()
+
+CorPerWeek <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerWeek[,Feature[1]],PerWeek[,Feature[2]])$estimate), "p.value" = round(cor.test(PerWeek[,Feature[1]],PerWeek[,Feature[2]])$p.value)), CorPerWeek)
+
+#Correlation <- merge(CorPerHour,CorPerDay, by = "ParticipantNumber")
+#Correlation <- merge(Correlation,CorPerWeek, by = "ParticipantNumber")
+
+plot1 <- ggplot() +
+  geom_point(aes(x = as.factor(CorPerHour[CorPerHour$p.value > 0.05,"ParticipantNumber"]), y = CorPerHour[CorPerHour$p.value > 0.05,"Correlation"], color = "Per Hour", shape = "non-significant"), ) +
+  geom_point(aes(x = as.factor(CorPerHour[CorPerHour$p.value <= 0.05,"ParticipantNumber"]), y = CorPerHour[CorPerHour$p.value <= 0.05,"Correlation"], color = "Per Hour", shape = "significant")) +
+   geom_hline(yintercept=CorPerHour$Correlation[CorPerHour$ParticipantNumber == "Overall"], linetype="dashed", color = "#0B3C69") +
+  geom_point(aes(x = as.factor(CorPerDay[CorPerDay$p.value > 0.05,"ParticipantNumber"]), y = CorPerDay[CorPerDay$p.value > 0.05,"Correlation"], color = "Per Day", shape = "non-significant")) +
+  geom_point(aes(x = as.factor(CorPerDay[CorPerDay$p.value <= 0.05,"ParticipantNumber"]), y = CorPerDay[CorPerDay$p.value <= 0.05,"Correlation"], color = "Per Day", shape = "significant")) +
+  geom_hline(yintercept=CorPerDay$Correlation[CorPerDay$ParticipantNumber == "Overall"], linetype="dashed", color = "#708FF9") +
+    geom_point(aes(x = as.factor(CorPerWeek[CorPerWeek$p.value > 0.05,"ParticipantNumber"]), y = CorPerWeek[CorPerWeek$p.value > 0.05,"Correlation"], color = "Per Week", shape = "non-significant")) +
+  geom_point(aes(x = as.factor(CorPerWeek[CorPerWeek$p.value <= 0.05,"ParticipantNumber"]), y = CorPerWeek[CorPerWeek$p.value <= 0.05,"Correlation"],color = "Per Week",shape = "significant")) +
+  geom_hline(yintercept=CorPerWeek$Correlation[CorPerWeek$ParticipantNumber == "Overall"], linetype="dashed", color = "#FFCD3C") +
+  ylab(element_blank()) +
+  xlab("Participants") +
+  scale_color_manual(name = "Resolution", values = c("Per Hour" = "#0B3C69", "Per Day" = "#708FF9", "Per Week" = "#FFCD3C")) +
+  guides(shape = guide_legend("Significance")) +
+  theme_minimal() +
+  theme(axis.text.x=element_blank(), panel.grid.minor.y = element_blank()) +
+  ggtitle("Excluding missing values") +
+  ylim(-1,1)
+
+### Without removing NA
+
+CorPerHourNA = PerHourNA %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(as.formula(paste("~",Feature[1], "+",Feature[2])))$estimate),p.value=round(cor.test(as.formula(paste("~",Feature[1], "+",Feature[2])))$p.value,2)) %>% as.data.frame()
+
+CorPerHourNA <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerHourNA[,Feature[1]],PerHourNA[,Feature[2]])$estimate), "p.value" = round(cor.test(PerHourNA[,Feature[1]],PerHourNA[,Feature[2]])$p.value)), CorPerHourNA)
+
+CorPerDayNA = PerDayNA %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(as.formula(paste("~",Feature[1], "+",Feature[2])))$estimate),p.value=round(cor.test(as.formula(paste("~",Feature[1], "+",Feature[2])))$p.value,2)) %>% as.data.frame()
+
+CorPerDayNA <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerDayNA[,Feature[1]],PerDayNA[,Feature[2]])$estimate), "p.value" = round(cor.test(PerDayNA[,Feature[1]],PerDayNA[,Feature[2]])$p.value)), CorPerDayNA)
+
+CorPerWeekNA = PerWeekNA %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(as.formula(paste("~",Feature[1], "+",Feature[2])))$estimate),p.value=round(cor.test(as.formula(paste("~",Feature[1], "+",Feature[2])))$p.value,2)) %>% as.data.frame()
+
+CorPerWeekNA <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerWeekNA[,Feature[1]],PerWeekNA[,Feature[2]])$estimate), "p.value" = round(cor.test(PerWeekNA[,Feature[1]],PerWeekNA[,Feature[2]])$p.value)), CorPerWeekNA)
+
+plot2 <- ggplot() +
+  geom_point(aes(x = as.factor(CorPerHourNA[CorPerHourNA$p.value > 0.05,"ParticipantNumber"]), y = CorPerHourNA[CorPerHourNA$p.value > 0.05,"Correlation"], color = "Per Hour", shape = "non-significant"), ) +
+  geom_point(aes(x = as.factor(CorPerHourNA[CorPerHourNA$p.value <= 0.05,"ParticipantNumber"]), y = CorPerHourNA[CorPerHourNA$p.value <= 0.05,"Correlation"], color = "Per Hour", shape = "significant")) +
+   geom_hline(yintercept=CorPerHourNA$Correlation[CorPerHourNA$ParticipantNumber == "Overall"], linetype="dashed", color = "#0B3C69") +
+  geom_point(aes(x = as.factor(CorPerDayNA[CorPerDayNA$p.value > 0.05,"ParticipantNumber"]), y = CorPerDayNA[CorPerDayNA$p.value > 0.05,"Correlation"], color = "Per Day", shape = "non-significant")) +
+  geom_point(aes(x = as.factor(CorPerDayNA[CorPerDayNA$p.value <= 0.05,"ParticipantNumber"]), y = CorPerDayNA[CorPerDayNA$p.value <= 0.05,"Correlation"], color = "Per Day", shape = "significant")) +
+  geom_hline(yintercept=CorPerDayNA$Correlation[CorPerDayNA$ParticipantNumber == "Overall"], linetype="dashed", color = "#708FF9") +
+    geom_point(aes(x = as.factor(CorPerWeekNA[CorPerWeekNA$p.value > 0.05,"ParticipantNumber"]), y = CorPerWeekNA[CorPerWeekNA$p.value > 0.05,"Correlation"], color = "Per Week", shape = "non-significant")) +
+  geom_point(aes(x = as.factor(CorPerWeekNA[CorPerWeekNA$p.value <= 0.05,"ParticipantNumber"]), y = CorPerWeekNA[CorPerWeekNA$p.value <= 0.05,"Correlation"],color = "Per Week",shape = "significant")) +
+  geom_hline(yintercept=CorPerWeekNA$Correlation[CorPerWeekNA$ParticipantNumber == "Overall"], linetype="dashed", color = "#FFCD3C") +
+  ylab(element_blank()) +
+  xlab("Participants") +
+  scale_color_manual(name = "Resolution", values = c("Per Hour" = "#0B3C69", "Per Day" = "#708FF9", "Per Week" = "#FFCD3C")) +
+  guides(shape = guide_legend("Significance")) +
+  theme_minimal() +
+  theme(axis.text.x=element_blank(), panel.grid.minor.y = element_blank()) +
+  ggtitle("Including missing values") +
+  ylim(-1,1)
+
+plot <- ggarrange(plot1,plot2, common.legend = TRUE)
+
+plot <- annotate_figure(plot, top = text_grob(paste("Correlation:", Feature[1], "&", Feature[2], "(per Participant)"),color = "black", size = 14))
+plot
+```
+```{r echo=FALSE}
+# Differences
+CorPerHourNA$diff = CorPerHourNA$Correlation - CorPerHour$Correlation
+CorPerDayNA$diff = CorPerDayNA$Correlation - CorPerDay$Correlation
+CorPerWeekNA$diff = CorPerWeekNA$Correlation - CorPerWeek$Correlation
+
+plot3 <- ggplot() +
+  geom_point(aes(x = as.factor(CorPerHourNA[,"ParticipantNumber"]), y = CorPerHourNA[,"diff"], color = "Per Hour")) + 
+   geom_hline(yintercept=CorPerHourNA$diff[CorPerHourNA$ParticipantNumber == "Overall"], linetype="dashed", color = "#0B3C69") +
+  geom_point(aes(x = as.factor(CorPerDayNA[,"ParticipantNumber"]), y = CorPerDayNA[,"diff"], color = "Per Day")) +
+  geom_hline(yintercept=CorPerDayNA$diff[CorPerDayNA$ParticipantNumber == "Overall"], linetype="dashed", color = "#708FF9") +
+  geom_point(aes(x = as.factor(CorPerWeekNA[,"ParticipantNumber"]), y = CorPerWeekNA[,"diff"], color = "Per Week")) +
+  geom_hline(yintercept=CorPerWeekNA$diff[CorPerWeekNA$ParticipantNumber == "Overall"], linetype="dashed", color = "#FFCD3C") +
+  ylab(element_blank()) +
+  xlab("Participants") +
+  scale_color_manual(name = "Resolution", values = c("Per Hour" = "#0B3C69", "Per Day" = "#708FF9", "Per Week" = "#FFCD3C")) +
+  theme_minimal() +
+  theme(axis.text.x=element_blank(), panel.grid.minor.y = element_blank()) +
+  ggtitle("Difference missing values")
+
+plot3
+
+
+```
+Maybe add to the plots the missing data number. Extreme effects on weeks: 1082,1242,1439. This are all participants in which a whole week of data is missing
+
+```{r echo=FALSE}
+### Being Home & Time Spent on Communication apps
+CorPerHour = PerHour %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(HOME,COMMUNICATION)$estimate),p.value=round(cor.test(HOME,COMMUNICATION)$p.value,2)) %>% as.data.frame()
+
+CorPerHour <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerHour$HOME,PerHour$COMMUNICATION)$estimate), "p.value" = round(cor.test(PerHour$HOME,PerHour$COMMUNICATION)$p.value)), CorPerHour)
+
+CorPerDay = PerDay %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(HOME,COMMUNICATION)$estimate),p.value=round(cor.test(HOME,COMMUNICATION)$p.value,2)) %>% as.data.frame()
+
+CorPerDay <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerDay$HOME,PerDay$COMMUNICATION)$estimate), "p.value" = round(cor.test(PerDay$HOME,PerDay$COMMUNICATION)$p.value)), CorPerDay)
+
+CorPerWeek = PerWeek %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(HOME,COMMUNICATION)$estimate),p.value=round(cor.test(HOME,COMMUNICATION)$p.value,2)) %>% as.data.frame()
+
+CorPerWeek <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerWeek$HOME,PerWeek$COMMUNICATION)$estimate), "p.value" = round(cor.test(PerWeek$HOME,PerWeek$COMMUNICATION)$p.value)), CorPerWeek)
+
+#Correlation <- merge(CorPerHour,CorPerDay, by = "ParticipantNumber")
+#Correlation <- merge(Correlation,CorPerWeek, by = "ParticipantNumber")
+
+plot1 <- ggplot() +
+  geom_point(aes(x = as.factor(CorPerHour[CorPerHour$p.value > 0.05,"ParticipantNumber"]), y = CorPerHour[CorPerHour$p.value > 0.05,"Correlation"], color = "Per Hour", shape = "non-significant"), ) +
+  geom_point(aes(x = as.factor(CorPerHour[CorPerHour$p.value <= 0.05,"ParticipantNumber"]), y = CorPerHour[CorPerHour$p.value <= 0.05,"Correlation"], color = "Per Hour", shape = "significant")) +
+   geom_hline(yintercept=CorPerHour$Correlation[CorPerHour$ParticipantNumber == "Overall"], linetype="dashed", color = "#0B3C69") +
+  geom_point(aes(x = as.factor(CorPerDay[CorPerDay$p.value > 0.05,"ParticipantNumber"]), y = CorPerDay[CorPerDay$p.value > 0.05,"Correlation"], color = "Per Day", shape = "non-significant")) +
+  geom_point(aes(x = as.factor(CorPerDay[CorPerDay$p.value <= 0.05,"ParticipantNumber"]), y = CorPerDay[CorPerDay$p.value <= 0.05,"Correlation"], color = "Per Day", shape = "significant")) +
+  geom_hline(yintercept=CorPerDay$Correlation[CorPerDay$ParticipantNumber == "Overall"], linetype="dashed", color = "#708FF9") +
+    geom_point(aes(x = as.factor(CorPerWeek[CorPerWeek$p.value > 0.05,"ParticipantNumber"]), y = CorPerWeek[CorPerWeek$p.value > 0.05,"Correlation"], color = "Per Week", shape = "non-significant")) +
+  geom_point(aes(x = as.factor(CorPerWeek[CorPerWeek$p.value <= 0.05,"ParticipantNumber"]), y = CorPerWeek[CorPerWeek$p.value <= 0.05,"Correlation"],color = "Per Week",shape = "significant")) +
+  geom_hline(yintercept=CorPerWeek$Correlation[CorPerWeek$ParticipantNumber == "Overall"], linetype="dashed", color = "#FFCD3C") +
+  ylab(element_blank()) +
+  xlab("Participants") +
+  scale_color_manual(name = "Resolution", values = c("Per Hour" = "#0B3C69", "Per Day" = "#708FF9", "Per Week" = "#FFCD3C")) +
+  guides(shape = guide_legend("Significance")) +
+  theme_minimal() +
+  theme(axis.text.x=element_blank(), panel.grid.minor.y = element_blank()) +
+  ggtitle("Excluding missing values")
+
+### Without removing NA
+
+CorPerHourNA = PerHourNA %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(HOME,COMMUNICATION)$estimate),p.value=round(cor.test(HOME,COMMUNICATION)$p.value,2)) %>% as.data.frame()
+
+CorPerHourNA <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerHourNA$HOME,PerHourNA$COMMUNICATION)$estimate), "p.value" = round(cor.test(PerHourNA$HOME,PerHourNA$COMMUNICATION)$p.value)), CorPerHourNA)
+
+CorPerDayNA = PerDayNA %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(HOME,COMMUNICATION)$estimate),p.value=round(cor.test(HOME,COMMUNICATION)$p.value,2)) %>% as.data.frame()
+
+CorPerDayNA <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerDayNA$HOME,PerDayNA$COMMUNICATION)$estimate), "p.value" = round(cor.test(PerDayNA$HOME,PerDayNA$COMMUNICATION)$p.value)), CorPerDayNA)
+
+CorPerWeekNA = PerWeekNA %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(HOME,COMMUNICATION)$estimate),p.value=round(cor.test(HOME,COMMUNICATION)$p.value,2)) %>% as.data.frame()
+
+CorPerWeekNA <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerWeekNA$HOME,PerWeekNA$COMMUNICATION)$estimate), "p.value" = round(cor.test(PerWeekNA$HOME,PerWeekNA$COMMUNICATION)$p.value)), CorPerWeekNA)
+
+plot2 <- ggplot() +
+  geom_point(aes(x = as.factor(CorPerHourNA[CorPerHourNA$p.value > 0.05,"ParticipantNumber"]), y = CorPerHourNA[CorPerHourNA$p.value > 0.05,"Correlation"], color = "Per Hour", shape = "non-significant"), ) +
+  geom_point(aes(x = as.factor(CorPerHourNA[CorPerHourNA$p.value <= 0.05,"ParticipantNumber"]), y = CorPerHourNA[CorPerHourNA$p.value <= 0.05,"Correlation"], color = "Per Hour", shape = "significant")) +
+   geom_hline(yintercept=CorPerHourNA$Correlation[CorPerHourNA$ParticipantNumber == "Overall"], linetype="dashed", color = "#0B3C69") +
+  geom_point(aes(x = as.factor(CorPerDayNA[CorPerDayNA$p.value > 0.05,"ParticipantNumber"]), y = CorPerDayNA[CorPerDayNA$p.value > 0.05,"Correlation"], color = "Per Day", shape = "non-significant")) +
+  geom_point(aes(x = as.factor(CorPerDayNA[CorPerDayNA$p.value <= 0.05,"ParticipantNumber"]), y = CorPerDayNA[CorPerDayNA$p.value <= 0.05,"Correlation"], color = "Per Day", shape = "significant")) +
+  geom_hline(yintercept=CorPerDayNA$Correlation[CorPerDayNA$ParticipantNumber == "Overall"], linetype="dashed", color = "#708FF9") +
+    geom_point(aes(x = as.factor(CorPerWeekNA[CorPerWeekNA$p.value > 0.05,"ParticipantNumber"]), y = CorPerWeekNA[CorPerWeekNA$p.value > 0.05,"Correlation"], color = "Per Week", shape = "non-significant")) +
+  geom_point(aes(x = as.factor(CorPerWeekNA[CorPerWeekNA$p.value <= 0.05,"ParticipantNumber"]), y = CorPerWeekNA[CorPerWeekNA$p.value <= 0.05,"Correlation"],color = "Per Week",shape = "significant")) +
+  geom_hline(yintercept=CorPerWeekNA$Correlation[CorPerWeekNA$ParticipantNumber == "Overall"], linetype="dashed", color = "#FFCD3C") +
+  ylab(element_blank()) +
+  xlab("Participants") +
+  scale_color_manual(name = "Resolution", values = c("Per Hour" = "#0B3C69", "Per Day" = "#708FF9", "Per Week" = "#FFCD3C")) +
+  guides(shape = guide_legend("Significance")) +
+  theme_minimal() +
+  theme(axis.text.x=element_blank(), panel.grid.minor.y = element_blank()) +
+  ggtitle("Including missing values")
+
+plot <- ggarrange(plot1,plot2, common.legend = TRUE)
+
+plot <- annotate_figure(plot, top = text_grob("Correlation: Being Home & Time spent on communication apps (per Participant)",color = "black", size = 14))
+plot
+```
+
+```{r echo=FALSE}
+### Being Home & Time Spent on Communication apps
+CorPerHour = PerHour %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(HOME_moving8h,COMMUNICATION_moving8h)$estimate),p.value=round(cor.test(HOME_moving8h,COMMUNICATION_moving8h)$p.value,2)) %>% as.data.frame()
+
+CorPerHour <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerHour$HOME_moving8h,PerHour$COMMUNICATION_moving8h)$estimate), "p.value" = round(cor.test(PerHour$HOME_moving8h,PerHour$COMMUNICATION_moving8h)$p.value)), CorPerHour)
+
+CorPerHour2 = PerHour %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(HOME_moving24h,COMMUNICATION_moving24h)$estimate),p.value=round(cor.test(HOME_moving24h,COMMUNICATION_moving24h)$p.value,2)) %>% as.data.frame()
+
+CorPerHour2 <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerHour$HOME_moving24h,PerHour$COMMUNICATION_moving24h)$estimate), "p.value" = round(cor.test(PerHour$HOME_moving24h,PerHour$COMMUNICATION_moving24h)$p.value)), CorPerHour2)
+
+CorPerHour3 = PerHour %>%
+  group_by(ParticipantNumber) %>%
+  summarize(Correlation = as.numeric(cor.test(HOME_moving168h,COMMUNICATION_moving168h)$estimate),p.value=round(cor.test(HOME_moving168h,COMMUNICATION_moving168h)$p.value,2)) %>% as.data.frame()
+
+CorPerHour3 <- rbind(data.frame("ParticipantNumber" = "Overall", "Correlation" = as.numeric(cor.test(PerHour$HOME_moving168h,PerHour$COMMUNICATION_moving168h)$estimate), "p.value" = round(cor.test(PerHour$HOME_moving168h,PerHour$COMMUNICATION_moving168h)$p.value)), CorPerHour3)
+
+#Correlation <- merge(CorPerHour,CorPerDay, by = "ParticipantNumber")
+#Correlation <- merge(Correlation,CorPerWeek, by = "ParticipantNumber")
+
+plot1 <- ggplot() +
+  geom_point(aes(x = as.factor(CorPerHour[CorPerHour$p.value > 0.05,"ParticipantNumber"]), y = CorPerHour[CorPerHour$p.value > 0.05,"Correlation"], color = "Moving Window 8h", shape = "non-significant")) +
+  geom_point(aes(x = as.factor(CorPerHour[CorPerHour$p.value <= 0.05,"ParticipantNumber"]), y = CorPerHour[CorPerHour$p.value <= 0.05,"Correlation"], color = "Moving Window 8h", shape = "significant")) +
+   geom_hline(yintercept=CorPerHour$Correlation[CorPerHour$ParticipantNumber == "Overall"], linetype="dashed", color = "#0B3C69") +
+  geom_point(aes(x = as.factor(CorPerHour2[CorPerHour2$p.value > 0.05,"ParticipantNumber"]), y = CorPerHour2[CorPerHour2$p.value > 0.05,"Correlation"], color = "Moving Window 24h", shape = "non-significant")) +
+  geom_point(aes(x = as.factor(CorPerHour2[CorPerHour2$p.value <= 0.05,"ParticipantNumber"]), y = CorPerHour2[CorPerHour2$p.value <= 0.05,"Correlation"], color = "Moving Window 24h", shape = "significant")) +
+  geom_hline(yintercept=CorPerHour2$Correlation[CorPerHour2$ParticipantNumber == "Overall"], linetype="dashed", color = "#708FF9") +
+    geom_point(aes(x = as.factor(CorPerHour3[CorPerHour3$p.value > 0.05,"ParticipantNumber"]), y = CorPerHour3[CorPerHour3$p.value > 0.05,"Correlation"], color = "Moving Window 168h", shape = "non-significant")) +
+  geom_point(aes(x = as.factor(CorPerHour3[CorPerHour3$p.value <= 0.05,"ParticipantNumber"]), y = CorPerHour3[CorPerHour3$p.value <= 0.05,"Correlation"],color = "Moving Window 168h",shape = "significant")) +
+  geom_hline(yintercept=CorPerHour3$Correlation[CorPerHour3$ParticipantNumber == "Overall"], linetype="dashed", color = "#FFCD3C") +
+  ylab(element_blank()) +
+  xlab("Participants") +
+  scale_color_manual(name = "Resolution", values = c("Moving Window 8h" = "#0B3C69", "Moving Window 24h" = "#708FF9", "Moving Window 168h" = "#FFCD3C")) +
+  guides(shape = guide_legend("Significance")) +
+  theme_minimal() +
+  theme(axis.text.x=element_blank(), panel.grid.minor.y = element_blank()) +
+  ggtitle("Excluding missing values")
+
+plot1
+```
+
+### Social Functioning Score
+
+```{r echo=FALSE, warning=FALSE}
+# Predict whether Alzheimer or Schizophrenia
+## Random slopes
+set.seed(12361488)
+
+res_lin1 <- PerHour  %>% lm(SFS ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION, data=.)
+
+res_lin2 <- PerDay  %>% lm(SFS ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION, data=.)
+
+res_lin3 <- PerWeek  %>% lm(SFS ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION, data=.)
+
+res_lin4 <- PerStudy  %>% lm(SFS ~ HOME + UniqueNumber + TotalMinutes + COMMUNICATION, data=.)
+
+
+
+plot2 <- dwplot(list(res_lin1,res_lin2,res_lin3), vline = geom_vline(
+               xintercept = 0,
+               colour = "grey60",
+               linetype = 2
+           )) +
+ scale_colour_manual(name = "Resolution",labels = c("Per Week", "Per Day", "Per Hour"), values = c("#0B3C69","#708FF9", "#FFCD3C")) +
+  theme_minimal() +
+  ggtitle("\n Linear Regression")
+
+plot2
+```
+
+## Predict to which class Participant belongs, differentiate between Alzheimer and Schizophrenia
+### Missing data labeled as NA
+
+```{r echo=FALSE, warning=FALSE}
+# Predict whether Alzheimer or Schizophrenia
+## Random slopes
+set.seed(12361488)
+res1 <- PerHour %>% filter(ParticipantLabel != "Label: 3 | Control") %>% glmer(as.factor(ParticipantLabel) ~  HOME + UniqueNumber + TotalMinutes + COMMUNICATION + (1 | ParticipantNumber), family=binomial, data=.)
+
+coef1 <- coef(summary(res1)) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    rename(estimate = Estimate, std.error = Std..Error)
+
+res2 <- PerDay  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glmer(as.factor(ParticipantLabel) ~ HOME + UniqueNumber + TotalMinutes + COMMUNICATION + (1 | ParticipantNumber), family=binomial, data=.)
+
+coef2 <- coef(summary(res2)) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    rename(estimate = Estimate, std.error = Std..Error)
+
+res3 <- PerWeek  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glmer(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION + (1 | ParticipantNumber), family=binomial, data=.)
+
+coef3 <- coef(summary(res3)) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    rename(estimate = Estimate, std.error = Std..Error)
+
+res4 <- PerStudy %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION, family=binomial, data=.)
+
+coef1$model = "Per Hour"
+coef2$model = "Per Day"
+coef3$model = "Per Week"
+
+plot1 <- dwplot(rbind(coef1,coef2,coef3), vline = geom_vline(
+               xintercept = 0,
+               colour = "grey60",
+               linetype = 2
+           )) +
+  scale_colour_manual(name = "Resolution",labels = c("Per Week", "Per Day", "Per Hour"), values = c("#0B3C69","#708FF9", "#FFCD3C")) +
+  theme_minimal() +
+  ggtitle("Random Intercept \n Logistic Regression ")
+
+### No random intercept
+res_lin1 <- PerHour  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION,family = "binomial", data=.)
+
+res_lin2 <- PerDay  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION,family = "binomial", data=.)
+
+res_lin3 <- PerWeek  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION,family = "binomial", data=.)
+
+res_lin4 <- PerStudy  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber + TotalMinutes + COMMUNICATION,family = "binomial", data=.)
+
+
+
+plot2 <- dwplot(list(res_lin1,res_lin2,res_lin3), vline = geom_vline(
+               xintercept = 0,
+               colour = "grey60",
+               linetype = 2
+           )) +
+ scale_colour_manual(name = "Resolution",labels = c("Per Week", "Per Day", "Per Hour"), values = c("#0B3C69","#708FF9", "#FFCD3C")) +
+  theme_minimal() +
+  ggtitle("\n Logistic Regression")
+
+NAremove <- ggarrange(plot1 + theme(legend.position = "none"),plot2 + theme(axis.title.y=element_blank(),
+           axis.text.y=element_blank(), 
+           axis.ticks.y=element_blank()) , common.legend = FALSE)
+
+NAremove <- annotate_figure(NAremove, top = text_grob("Differentiation between Alzheimer & Schizophrenia (Including Missing Values)",color = "black", size = 14))
+NAremove
+```
+
+### Missing data labeled as 0
+
+```{r echo=FALSE, warning=FALSE}
+## Random slopes
+res1NA <- PerHourNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glmer(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION + (1 | ParticipantNumber), family=binomial, data=.)
+
+coef1NA <- coef(summary(res1NA)) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    rename(estimate = Estimate, std.error = Std..Error)
+
+res2NA <- PerDayNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glmer(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION + (1 | ParticipantNumber), family=binomial, data=.)
+
+coef2NA <- coef(summary(res2NA)) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    rename(estimate = Estimate, std.error = Std..Error)
+
+res3NA <- PerWeekNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glmer(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION + (1 | ParticipantNumber), family=binomial, data=.)
+
+coef3NA <- coef(summary(res3NA)) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    rename(estimate = Estimate, std.error = Std..Error)
+
+res4NA <- PerStudyNA %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION, family=binomial, data=.)
+
+coef1NA$model = "Per Hour"
+coef2NA$model = "Per Day"
+coef3NA$model = "Per Week"
+
+plot1NA <- dwplot(rbind(coef1NA,coef2NA,coef3NA), vline = geom_vline(
+               xintercept = 0,
+               colour = "grey60",
+               linetype = 2
+           )) +
+  theme_minimal() +
+  scale_colour_manual(name = "Resolution",labels = c("Per Week", "Per Day", "Per Hour"), values = c("#0B3C69","#708FF9", "#FFCD3C")) +
+  ggtitle("Random Intercept \n Logistic Regression")
+
+
+### No random slopes
+res_lin1NA <- PerHourNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION,family = "binomial", data=.)
+
+res_lin2NA <- PerDayNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION,family = "binomial", data=.)
+
+res_lin3NA <- PerWeekNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes  + COMMUNICATION,family = "binomial", data=.)
+
+res_lin4NA <- PerStudyNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION,family = "binomial", data=.)
+
+
+
+plot2NA <- dwplot(list(res_lin1NA,res_lin2NA,res_lin3NA), vline = geom_vline(
+               xintercept = 0,
+               colour = "grey60",
+               linetype = 2
+           )) +
+  scale_colour_manual(name = "Resolution",labels = c("Per Week", "Per Day", "Per Hour"), values = c("#0B3C69","#708FF9", "#FFCD3C")) +
+  theme_minimal() +
+  ggtitle("\n Logistic Regression")
+
+NAnotremove <- ggarrange(plot1NA + theme(legend.position = "none"),plot2NA + theme(axis.title.y=element_blank(),
+           axis.text.y=element_blank(), 
+           axis.ticks.y=element_blank()) , common.legend = FALSE)
+
+
+NAnotremove <- annotate_figure(NAnotremove, top = text_grob("Differentiation between Alzheimer & Schizophrenia (Excluding Missing Values)",color = "black", size = 14))
+
+NAnotremove
+```
+
+```{r echo=FALSE, warning=FALSE}
+# combine plots NAremove & NAnotremove
+stargazer(res1,res1NA,res_lin1,res_lin1NA,res2,res2NA,res_lin2,res_lin2NA,res3,res3NA,res_lin3,res_lin3NA, dep.var.labels.include	= F, type = "text", add.lines = list(c("Resolution", "Hour", "Hour", "Hour", "Hour","Day", "Day", "Day", "Day", "Week", "Week", "Week", "Week"),c("Missing Data excluded", "Yes", "No", "Yes", "No","Yes", "No", "Yes", "No","Yes", "No", "Yes", "No")))
+
+stargazer(res1,res_lin1,res2,res_lin2,res3,res_lin3, dep.var.labels.include	= F, type = "text", add.lines =list( c("Resolution","Hour", "Hour", "Day", "Day", "Week", "Week")))
+
+```
+
+## Something with Change
+
+```{r}
+resultHour <- NULL
+resultDay <- NULL
+resultWeek <- NULL
+resultStudy <- NULL
+
+variables <- c("HOME",'HOME_moving24h', 'HOME_moving168h', 'HOME_moving8h','COMMUNICATION','TotalMinutes',"UniqueNumber")
+
+for(i in 1:length(variables)){
+resultHour[[i]] <- PerHour  %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia") %>%  glm(as.formula(paste("as.factor(ParticipantLabel) ~", variables[i])),family = "binomial", data=.)
+}
+
+variables <- c("HOME",'HOME_moving7d', 'HOME_moving14d', 'HOME_moving28d','COMMUNICATION','TotalMinutes',"UniqueNumber")
+
+for(i in 1:length(variables)){
+resultDay[[i]] <- PerDay  %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia") %>%  glm(as.formula(paste("as.factor(ParticipantLabel) ~", variables[i])) ,family = "binomial", data=.)
+}
+
+for(i in 1:length(variables)){
+resultWeek[[i]] <- PerWeek  %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia") %>%  glm(as.factor(ParticipantLabel) ~ HOME,family = "binomial", data=.)
+}
+
+for(i in 1:length(variables)){
+resultStudy[[i]] <- PerStudy  %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia") %>%  glm(as.factor(ParticipantLabel) ~ HOME,family = "binomial", data=.)
+}
+
+plot2 <- dwplot(c(resultHour,resultDay), vline = geom_vline(
+               xintercept = 0,
+               colour = "grey60",
+               linetype = 2
+           )) +
+  theme_minimal() 
+
+plot2
+```
+
+
+```{r}
+
+```
+

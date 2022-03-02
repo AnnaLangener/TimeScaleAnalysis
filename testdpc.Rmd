@@ -1,0 +1,100 @@
+---
+title: "TestPlots"
+author: "Anna Langener"
+date: "2/18/2022"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+source("CorrelationPlot.R")
+library(sjPlot)
+library(jtools)
+library(nlme)
+library(dplyr)
+library(ggplot2)
+library(lme4)
+library(dotwhisker)
+library(ggpubr)
+library(stargazer)
+library(tidyr)
+library(plotly)
+
+
+PerStudy <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerStudy.csv")
+PerWeek <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerWeek.csv")
+PerDay <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerDay.csv")
+PerHour <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerHour.csv")
+
+to_analyze <- read.csv("/Users/annalangener/Google Drive/PhD Wellbeing/to_analyse.csv")
+to_analyze <- to_analyze[,colnames(to_analyze) %in% c("BEHAPP_ID","SFS","LONELINESS")]
+
+PerStudy <- left_join(PerStudy, to_analyze, by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+PerWeek <- left_join(PerWeek, to_analyze, by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+PerDay <- left_join(PerDay, to_analyze, by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+PerHour <- left_join(PerHour, to_analyze, by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+
+set.seed(12361488)
+train_ind <- sample(PerStudy$ParticipantNumber, size = 0.7*nrow(PerStudy))
+
+PerHourtrain <- PerHour[PerHour$ParticipantNumber %in% train_ind, ]
+PerHourtest <- PerHour[!PerHour$ParticipantNumber %in% train_ind, ]
+
+PerDaytrain <- PerDay[PerDay$ParticipantNumber %in% train_ind, ]
+PerDaytest <- PerDay[!PerDay$ParticipantNumber %in% train_ind, ]
+
+PerWeektrain <- PerWeek[PerWeek$ParticipantNumber %in% train_ind, ]
+PerWeektest <- PerWeek[!PerWeek$ParticipantNumber %in% train_ind, ]
+
+PerStudytrain <- PerStudy[PerStudy$ParticipantNumber %in% train_ind, ]
+PerStudytest <- PerStudy[!PerStudy$ParticipantNumber %in% train_ind, ]
+
+
+# NA not replaced
+PerHourNA <- PerHour
+PerHourNA[is.na(PerHourNA)] <- 0
+PerDayNA <- PerDay
+PerDayNA[is.na(PerDayNA)] <- 0
+PerWeekNA <- PerWeek
+PerWeekNA[is.na(PerWeekNA)] <- 0
+PerStudyNA <- PerStudy
+PerStudyNA[is.na(PerStudyNA)] <- 0
+```
+
+This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately.
+
+To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
+
+## Inputs and Outputs
+
+You can embed Shiny inputs and outputs in your document. Outputs are automatically updated whenever inputs change. This demonstrates how a standard R plot can be made interactive by wrapping it in the Shiny `renderPlot` function. The `selectInput` and `sliderInput` functions create the input widgets used to drive the plot.
+
+```{r eruptions, echo=FALSE}
+
+PerStudy <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerStudy.csv")
+PerWeek <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerWeek.csv")
+PerDay <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerDay.csv")
+PerHour <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerHour.csv")
+
+inputPanel(
+  selectInput("Resolution", label = "Select Resolution:",
+              choices = c(PerHour,PerDay, PerWeek, PerStudy), selected = PerHour),
+  
+  sliderInput("bw_adjust", label = "Bandwidth adjustment:",
+              min = 0.2, max = 2, value = 1, step = 0.2)
+)
+
+renderPlot({
+  if(input$Resolution == PerHour){
+  
+    ggplotly(ggplot(data = PerHour[PerHour$ParticipantNumber == 1438,], (aes(x = as.Date(index_time), y = TotalMinutes))) +
+      geom_line())
+  
+  }else if(input$Resolution == PerDay){
+        ggplotly(ggplot(data = PerDay[PerDay$ParticipantNumber == 1438,], (aes(x = as.Date(index_time), y = TotalMinutes))) +
+      geom_line())
+  }
+
+})
+```
+

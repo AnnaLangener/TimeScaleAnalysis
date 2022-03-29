@@ -1,0 +1,1092 @@
+---
+title: "Temporal Resultion: Rolling Window"
+output: 
+    rmarkdown::html_document:
+    theme: lumen
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library('dplyr')
+library('ggplot2')
+library('plotly')
+library("runner")
+library("hrbrthemes")
+library("viridis")
+library("ggpubr")
+library("tidyr")
+library("knitr")
+library("dotwhisker")
+
+BEHAPP_ID = c(117113,117114,117119,117121,117130,117129,117131,117134,117135,117137)
+
+
+###### Load dataframes #########
+################################
+Interactions <- read.csv('/Users/annalangener/Nextcloud/BEHAPP data/Interactions.csv') # created with IMPORTANT Social context python script
+data <- read.csv('/Users/annalangener/Nextcloud/BEHAPP data/SocialContext.csv') 
+passive <- read.csv('/Users/annalangener/Nextcloud/BEHAPP data/TotalSocial.csv') #created with timescale function
+passive_match <- read.csv('/Users/annalangener/Nextcloud/BEHAPP data/TestData2.csv') # created with ESM match function
+ESM_data <-  read.csv('/Users/annalangener/Nextcloud/BEHAPP data/SocialContext.csv')
+
+####### Merge dataframes/ select variables #######
+##################################################
+###### Affect data
+# Only keep participants with at least 3 weeks of behapp data
+ESM_data = ESM_data[ESM_data$BEHAPP_ID %in% BEHAPP_ID,]
+
+#Create affect mean scores
+ESM_data['pa_mean'] <- ESM_data %>% select(c("pa_happy_sliderNegPos","pa_energy_sliderNegPos","pa_relax_sliderNegPos")) %>% rowMeans()
+
+ESM_data['na_mean'] <-  ESM_data %>% select(c("na_sad_sliderNegPos","na_anx_sliderNegPos","na_stress_sliderNegPos","na_irritate_sliderNegPos")) %>% rowMeans()
+
+# Seclet variables of intrest
+ESM_affect <- ESM_data  %>% select(c("BEHAPP_ID","index_time", "pa_mean","na_mean","questionListName"))     
+
+# Remove backlog questionnaires
+ESM_affect <- ESM_affect[ESM_affect$questionListName != "Backlog Interaction",]
+
+# Change colnames
+colnames(ESM_affect)[colnames(ESM_affect) == 'BEHAPP_ID'] <- 'ParticipantNumber'
+colnames(ESM_affect)[colnames(ESM_affect) == 'index_time'] <- 'Date'
+
+Affect_Passive <- merge(ESM_affect,passive_match, by = c("ParticipantNumber","Date"), all = FALSE)
+
+Affect_Passive = Affect_Passive %>% select(c("Date", "pa_mean","na_mean","questionListName", "ParticipantNumber","timescale_beforeESM",'SOCIAL_min','COMMUNICATION_min','APP_USAGE_min','APPS_OPENED_number','Cluster_HOME_min','UNIQUE_STAYPOINTS_number','TIME_STATIONARY_min','TOTAL_MACHASHES_number','UNIQUE_MACHASHES_number','CALL_TOTAL_min',"BLUETOOTH_TOTAL_MACHASHES_number","BLUETOOTH_UNIQUE_MACHASHES_number", "CALL_TOTAL_min" ))
+
+#Affect_Passive %>% select(c("Date", "pa_mean","na_mean","questionListName", "ParticipantNumber","timescale_beforeESM",'SOCIAL_APPS_min','COMMUNICATION_APPS_min','APP_USAGE_min','APPS_OPENED_number','CLUSTER_HOME_min','UNIQUE_STAYPOINTS_number','TIME_STATIONARY_min','TOTAL_MACHASHES_number','UNIQUE_MACHASHES_number','CALL_incoming_min','CALL_outgoing_min','CALL_TOTAL_min','MISSED_CALLS_number',"BLUETOOTH_TOTAL_MACHASHES_number","BLUETOOTH_UNIQUE_MACHASHES_number" ))       
+
+#remove double rows that occur because of backlogged interactions
+Affect_Passive <- distinct(Affect_Passive)
+ 
+##### Interaction data  #####
+
+passive = passive[passive$ParticipantNumber %in% BEHAPP_ID,]
+
+IntPerDay = Interactions[Interactions$time_scale == 'per day',]
+IntPerDay$Date <- as.Date(IntPerDay$Date)
+
+passiveDay = passive[passive$timescale_index == 'per day',]
+passiveDay$Date <- as.Date(passiveDay$Date)
+passiveDay$index_time <- as.Date(passiveDay$index_time)
+
+
+PerDay <- right_join(passiveDay, IntPerDay, by = c("ParticipantNumber" = "BEHAPP_ID","index_time" = "Date"),suffix = c("",""))
+PerWeek <- full_join(passive[passive$timescale_index == "per week",], Interactions[Interactions$time_scale == "per week",],  by = c("ParticipantNumber" = "BEHAPP_ID","index_time" = "Date"),suffix = c("",""))
+PerStudy <- full_join(passive[passive$timescale_index == "per study",], Interactions[Interactions$time_scale == "per study",], by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+
+```
+
+After aggregating the data (e.g., per hour or per day) researchers often choose a rolling window to analyze the data. For example, Abdullah et al., 2016 aggregated the data on a daily level and then chose a rolling window of seven days to predict how stable the social rhythm of a person is. Other researchers aggregated the data on a hourly level and then chose a rolling window of 24 hours to predict anxiety symptoms (Jacobson & Bhattacharya, 2022, Jacobson & Chung, 2020). Additionally, researchers might want to add more variables to their dataset. For instance, if we aggregated our data on a daily level, we might want to calculate how the behavior varies around certain days and, thus, calculate the variance over a certain time window (Hoogendoorn & Funk, 2018). Even though practical and theoretical considerations might help to choose a specific rolling window, so far, often little justification is given for selecting it. Therefore, the following examples aim to investigate the impact of choosing different rolling windows on the results of the analysis.
+
+### Example 1 - Level of Aggregation
+In this example we test whether the level of aggregation matters
+
+#### Affect & Passive Measure
+
+Descriptive Plots
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(scales)
+shinyApp(
+  ui = fluidPage(
+    selectInput(
+      "PassiveMeasure",
+      label = "Passive Measure: ",
+       choices = c(
+        'SOCIAL_min',
+        'COMMUNICATION_min',
+        'APP_USAGE_min',
+        'APPS_OPENED_number',
+        'Cluster_HOME_min',
+        'UNIQUE_STAYPOINTS_number',
+        'TIME_STATIONARY_min',
+        'TOTAL_MACHASHES_number',
+        'UNIQUE_MACHASHES_number',
+        'CALL_TOTAL_min'
+      ),
+      selected = "Cluster_HOME_min"
+    ),
+    selectInput(
+      "Affect",
+      label = "Affect: ",
+      choices = c(
+        'pa_mean',
+        'na_mean'
+      ),
+      selected = "pa_mean"
+    ),
+    selectInput(
+      "BEHAPP_ID",
+      label = "Participant Number: ",
+      choices = c(117113,117114,117119,117121,117130,117129,117131,117134,117135,117137),
+      selected = c(117113,117114,117119,117121,117130,117129,117131,117134,117135,117137),
+      multiple = TRUE
+    ),
+    plotOutput("Plot")
+  ),
+  
+  server = function(input, output) {
+    toListen <- reactive({
+    list(input$PassiveMeasure,input$BEHAPP_ID,input$Affect)
+  })
+    observeEvent(toListen(), {
+      Passive = input$PassiveMeasure
+      Feature <- input$Affect
+      counter = 0
+      
+      BEHAPP_ID = input$BEHAPP_ID
+
+      #copy stuff for plot
+      Affect_Passive[,"Passivecopy"] <- Affect_Passive[,colnames(Affect_Passive) == Passive]
+      Affect_Passive[,"Featurecopy"] <- Affect_Passive[,colnames(Affect_Passive) == Feature]
+      
+         
+      max = max(Affect_Passive[,"Featurecopy"], na.rm = TRUE)
+      maxy = max(Affect_Passive[,"Passivecopy"],na.rm = TRUE)
+      
+      if(max > maxy){
+        scaleplot = 0.1*maxy
+      }else{
+        scaleplot = (maxy/max)
+      }
+      
+      output$Plot = renderPlot({
+          ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% BEHAPP_ID,], aes(x = as.POSIXct(Date)))+
+            geom_line(aes(y = Passivecopy, color = as.factor(timescale_beforeESM))) +
+            geom_line(aes(y = Featurecopy*scaleplot), color ="#f95d6a") +
+            scale_color_manual(
+              values = c(
+                "#90F1B3",
+                "#255e7e",
+                "#3CD8DA",
+                "#5383a1",
+                "#3CD8DA",
+                "#7faac6",
+                "#218CB3",
+                "#abd2ec",
+                "#c1e7ff"
+              )
+            ) +
+          scale_x_datetime(labels = date_format("%m-%d"), date_breaks = "1 week") +
+            ylab(Passive) +
+            theme_minimal() +
+            scale_y_continuous(
+              name = paste(Passive),
+              limits = c(0, maxy),
+              sec.axis = sec_axis( ~ . / scaleplot, name = 'Affect')
+            ) +
+            facet_wrap( ~ ParticipantNumber, ncol = 2, scales = 'free')
+        
+      },  height = 500, width = 800)
+      
+    })
+  },
+  options = list(height = 780, width = 820)
+)
+```
+
+
+
+```{r echo=FALSE}
+shinyApp(
+  ui = fluidPage(
+    selectInput(
+      "PassiveMeasure",
+      label = "Passive Measure: ",
+      choices = c(
+        'SOCIAL_min',
+        'COMMUNICATION_min',
+        'APP_USAGE_min',
+        'APPS_OPENED_number',
+        'Cluster_HOME_min',
+        'UNIQUE_STAYPOINTS_number',
+        'TIME_STATIONARY_min',
+        'TOTAL_MACHASHES_number',
+        'UNIQUE_MACHASHES_number',
+        'CALL_TOTAL_min'
+      ),
+      selected = "Cluster_HOME_min"
+    ),selectInput(
+      "Affect",
+      label = "Affect: ",
+      choices = c(
+        'pa_mean',
+        'na_mean'
+      ),
+      selected = "pa_mean"
+    ),
+    plotOutput("Plot")
+  ),
+  
+  server = function(input, output) {
+    toListen <- reactive({
+    list(input$PassiveMeasure,input$Affect)
+  })
+    observeEvent(toListen(),{
+      Passive = input$PassiveMeasure
+      Feature <- input$Affect
+      counter = 0
+      
+      BEHAPP_ID = c(117113,117114,117119,117121,117130,117129,117131,117134,117135,117137)
+      
+      #create a new columns to check sum
+      Affect_Passive[,"Passivecopy"] <- Affect_Passive[,colnames(Affect_Passive) == Passive]
+      
+      Correlation = Affect_Passive %>%
+        group_by(ParticipantNumber, timescale_beforeESM) %>%
+        summarize(
+          "Size" = "thin",
+          "Correlation" = ifelse(
+            sum(Passivecopy, na.rm = TRUE) != 0,
+            as.numeric(cor.test(as.formula(paste("~",Feature, "+",Passive)))$estimate),
+            NA
+          ),
+          "p.value" = ifelse(sum(Passivecopy, na.rm = TRUE) != 0, round(cor.test(as.formula(paste("~",Feature, "+",Passive)))$p.value, 2), NA)
+        )
+      
+      Correlation$ParticipantNumber <-
+        as.character(Correlation$ParticipantNumber)
+      
+      OverallCorrelation = Affect_Passive %>%
+        group_by(timescale_beforeESM) %>%
+        summarize(
+          "Size" = "thick",
+          "ParticipantNumber" = "Overall",
+          Correlation = as.numeric(cor.test(as.formula(paste("~",Feature, "+",Passive)))$estimate),
+          "p.value" = round(cor.test(as.formula(paste("~",Feature, "+",Passive)))$p.value, 2)
+        )
+      
+      Correlation = rbind(Correlation, OverallCorrelation)
+      
+      
+      
+      Correlation$sign = "non-sign"
+      Correlation[!is.na(Correlation$p.value) &
+                    Correlation$p.value <= 0.05, ]$sign = "sign"
+      
+      Correlation$star = ""
+      Correlation[!is.na(Correlation$p.value) &
+                    Correlation$p.value <= 0.05, ]$star = "*"
+      
+     Correlation$timescale_beforeESM_num <- recode(Correlation$timescale_beforeESM, "3h" = 3,"6h" = 6,"9h" = 9,"12h" = 12 )
+     
+     Correlation$timescale_beforeESM <- ordered(Correlation$timescale_beforeESM,levels = c("3h","6h","9h","12h"))
+      
+      cor1 =  ggplot(Correlation,
+                     aes(
+                       y = as.factor(ParticipantNumber),
+                       x = as.factor(timescale_beforeESM),
+                       fill = Correlation
+                     )) +
+        geom_tile() +
+        scale_fill_gradient2(low = "#D7191C", mid = "white", high = "#2C7BB6") +
+        geom_text(aes(label = star), color = "black", size = 4) +
+        ylab("") +
+        xlab("") +
+        ggtitle(paste("Correlation between", Feature, "&", Passive)) +
+        theme_minimal()
+      
+      
+      cor2 = ggplot(Correlation, aes(x = timescale_beforeESM_num)) +
+        geom_line(aes(
+          y = Correlation,
+          color = ParticipantNumber,
+          size = Size
+        )) +
+        geom_point(aes(
+          y = Correlation,
+          color = as.factor(ParticipantNumber),
+          shape = sign
+        )) +
+        scale_size_manual(values = c(1, 0.5)) +
+        scale_shape_manual(values = c("sign" = 8, "non-sign" = 16)) +
+        xlab("time scale for aggregation") +
+        theme_minimal() +
+        theme(panel.grid.minor.y = element_blank()) +
+        ggtitle(paste("Correlation between", Feature, "&", Passive)) +
+        guides(shape = guide_legend(""),
+               size = FALSE,
+               color = guide_legend("")) +
+            scale_color_manual(
+              values = c("#08324f","#90F1B3", "#255e7e", "#3CD8DA", "#5383a1", "#3CD8DA", "#7faac6", "#218CB3", "#abd2ec", "#c1e7ff", "#f95d6a")) +
+        scale_x_discrete(limits = c(3,6,9,12),labels = c("3h", "6h","9h", "12h"))
+      
+      
+      output$Plot = renderPlot({ggarrange(cor1,cor2)
+      },  height = 400, width = 800)
+      
+    })
+  },
+  options = list(height = 600, width = 820)
+)
+```
+
+
+#### Interaction & Passive Measure
+
+```{r echo=FALSE}
+Feature <- c('All_Interactions', "CLUSTER_HOME_pct")
+
+Passive = c(
+        'SOCIAL_APPS_pct',
+        'APP_USAGE_pct',
+        'APPS_OPENED_norm',
+        'SOCIAL_APPS_min',
+        'COMMUNICATION_APPS_pct',
+        'COMMUNICATION_APPS_min',
+        'APP_USAGE_min',
+        'APPS_OPENED_number',
+        'CLUSTER_HOME_pct',
+        'UNIQUE_STAYPOINTS_norm',
+        'TIME_STATIONARY_pct',
+        'CLUSTER_HOME_min',
+        'UNIQUE_STAYPOINTS_number',
+        'TIME_STATIONARY_min',
+        'TOTAL_MACHASHES_norm',
+        'UNIQUE_MACHASHES_norm',
+        'CALL_incoming_pct',
+        'CALL_outgoing_pct',
+        'CALL_TOTAL_pct',
+        'MISSED_CALLS_norm'
+      )
+
+counter = 0
+PerDay <- PerDay[!is.na(PerDay$ParticipantNumber),]
+PerWeek <- PerWeek[!is.na(PerWeek$ParticipantNumber),]
+
+
+for(j in 1:length(Passive)) {
+  counter = counter + 1
+  if (counter == 1) {
+    CorPerDay <-
+      data.frame(
+        Passive = Passive[j],
+        Time = "Per Day",
+        "ParticipantNumber" = "Overall",
+        "Correlation" = ifelse(
+          sum(PerDay[, Passive[j]], na.rm = TRUE) != 0,
+          as.numeric(cor.test(PerDay[, Feature[1]], PerDay[, Passive[j]])$estimate),
+          NA
+        ),
+        "p.value" = ifelse(sum(PerDay[, Passive[j]], na.rm = TRUE) != 0, round(cor.test(
+          PerDay[, Feature[1]], PerDay[, Passive[j]]
+        )$p.value,2), NA)
+      )
+    
+    CorPerWeek <-
+      data.frame(
+        Passive = Passive[j],
+        Time = "Per Week",
+        "ParticipantNumber" = "Overall",
+        "Correlation" = ifelse(
+          sum(PerWeek[, Passive[j]], na.rm = TRUE) != 0,
+          as.numeric(cor.test(PerWeek[, Feature[1]], PerWeek[, Passive[j]])$estimate),
+          NA
+        ),
+        "p.value" = ifelse(
+          sum(PerWeek[, Passive[j]], na.rm = TRUE) != 0,
+          round(cor.test(PerWeek[, Feature[1]], PerWeek[, Passive[j]])$p.value,2),
+          NA
+        )
+      )
+  } else{
+    CorPerDay <- rbind(
+      data.frame(
+        Passive = Passive[j],
+        Time = "Per Day",
+        "ParticipantNumber" = "Overall",
+        "Correlation" = ifelse(
+          sum(PerDay[,Passive[j]], na.rm = TRUE) != 0,
+          as.numeric(cor.test(PerDay[, Feature[1]], PerDay[, Passive[j]])$estimate),
+          NA
+        ),
+        "p.value" = ifelse(sum(PerDay[, Passive[j]], na.rm = TRUE) != 0, round(cor.test(
+          PerDay[, Feature[1]], PerDay[, Passive[j]]
+        )$p.value,2), NA)
+      ),
+      CorPerDay
+    )
+    
+    CorPerWeek <-
+      rbind(
+        data.frame(
+          Passive = Passive[j],
+          Time = "Per Week",
+          "ParticipantNumber" = "Overall",
+          "Correlation" = ifelse(
+            sum(PerWeek[, Passive[j]], na.rm = TRUE) != 0,
+            as.numeric(cor.test(PerWeek[, Feature[1]], PerWeek[, Passive[j]])$estimate),
+            NA
+          ),
+          "p.value" = ifelse(
+            sum(PerWeek[, Passive[j]], na.rm = TRUE) != 0,
+            round(cor.test(PerWeek[, Feature[1]], PerWeek[, Passive[j]])$p.value,2),
+            NA
+          )),
+          CorPerWeek
+        )
+    
+    
+  }
+  
+}
+
+
+Correlation = rbind(CorPerDay, CorPerWeek)
+
+
+
+Correlation$sign = "non-sign"
+Correlation[!is.na(Correlation$p.value) &
+              Correlation$p.value <= 0.05,]$sign = "sign"
+
+Correlation$star = ""
+Correlation[!is.na(Correlation$p.value) &
+              Correlation$p.value <= 0.05,]$star = "*"
+
+
+cor1 =  ggplot(Correlation,
+               aes(
+                 y = as.factor(Passive),
+                 x = as.factor(Time),
+                 fill = Correlation
+               )) +
+  geom_tile() +
+  scale_fill_gradient2(low = "#D7191C", mid = "white", high = "#2C7BB6") +
+  geom_text(aes(label = star), color = "black", size = 4) +
+  ylab("") +
+  xlab("") +
+  ggtitle(paste("Correlation", Feature[1], "& Passive Features")) +
+  theme_minimal()
+
+ggplotly(cor1)
+```
+
+
+### Prediciton Models (for affect, because here we can do individualized models?)
+As a next step I want to build simple prediciton models. 
+Nick: non-stationarity, maybe at the beginning relationship there but then not, How to deal with this
+Cross-validation (with time, rolling window) (look at nicks code)
+
+```{r eval=FALSE, include=FALSE}
+Participant1 = Affect_Passive[Affect_Passive["ParticipantNumber"] == 117130 & Affect_Passive["timescale_beforeESM"] == "6h",  ]
+
+formula <- as.formula(paste("pa_mean ~ SOCIAL_min+COMMUNICATION_min+APP_USAGE_min+APPS_OPENED_number+Cluster_HOME_min+UNIQUE_STAYPOINTS_number+TIME_STATIONARY_min+TOTAL_MACHASHES_number+UNIQUE_MACHASHES_number+BLUETOOTH_TOTAL_MACHASHES_number+BLUETOOTH_UNIQUE_MACHASHES_number"))
+
+
+
+myTimeControl <- trainControl(method = "timeslice",
+                              initialWindow = 7,
+                              horizon = 1,
+                              fixedWindow = TRUE)
+
+model<- train(formula, data=Participant1, trControl = myTimeControl, method="pls", na.action = na.omit) 
+
+
+
+# https://topepo.github.io/caret/data-splitting.html#data-splitting-for-time-series
+
+timeSlices <- createTimeSlices(1:nrow(TestData), 
+                   initialWindow = 7, horizon = 1, fixedWindow = TRUE)
+
+
+trainSlices <- timeSlices[[1]]
+testSlices <- timeSlices[[2]]
+
+
+#The results in folds can be used as inputs into the index argument of the trainControl function
+
+for(i in 1:length(trainSlices)){
+model<- train(formula, data=TestData[trainSlices[[1]],], method="pls", na.action = na.omit) 
+
+pred <- predict(model,TestData[testSlices[[1]],])
+
+true <- TestData$All_Interactions[testSlices[[1]]]
+}
+
+#####
+folds <- groupKFold(PerDay$ParticipantNumber, k = 7) 
+ctrl <- trainControl(index = folds, method = 'cv')
+z
+train <- PerDay[folds[[1]],]
+test <- PerDay[-folds[[1]],]
+
+model <- train(formula, data=train, method="lm", na.action = na.omit) 
+
+
+```
+
+
+```{r eval=FALSE, include=FALSE}
+library(randomForest)
+library(caret)
+
+Participant1 = Affect_Passive[Affect_Passive["ParticipantNumber"] == 117130 & Affect_Passive["timescale_beforeESM"] == "6h",  ]
+
+formula <- as.formula(paste("pa_mean ~ SOCIAL_min+COMMUNICATION_min+APP_USAGE_min+APPS_OPENED_number+Cluster_HOME_min+UNIQUE_STAYPOINTS_number+TIME_STATIONARY_min+TOTAL_MACHASHES_number+UNIQUE_MACHASHES_number+BLUETOOTH_TOTAL_MACHASHES_number+BLUETOOTH_UNIQUE_MACHASHES_number"))
+
+forest1 = randomForest(formula, data = Participant1, importance=TRUE, na.action = na.roughfix)
+forest1
+importance(forest1)
+
+ggplot() +
+  geom_path(data = Participant1, aes(x = as.Date(Date), y = pa_mean )) +
+  geom_path(aes(x = as.Date(Participant1$Date), y = forest1$predicted), color = "red")
+
+myTimeControl <- trainControl(method = "timeslice",
+                              initialWindow = 3,
+                              horizon = 1,
+                              fixedWindow = TRUE)
+
+model<- train(formula, data=Affect_Passive[Affect_Passive["timescale_beforeESM"] == "6h",  ], method="rf", na.action = na.roughfix) 
+
+
+```
+
+
+```{r eval=FALSE, include=FALSE}
+#“Predicting states of elevated negative affect in adolescents from smartphone sensors: A novel personalized machine learning approach”
+set.seed(12361488)
+
+affect_mean_use = lapply(split(Affect_Passive, Affect_Passive$ParticipantNumber), function(x){
+  x$pa_mean_rescale = x$pa_mean - median(x$pa_mean, na.rm = TRUE)
+  x$pa_mean_extreme = 1*(x$pa_mean_rescale>0.5)
+  x$na_mean_rescale = x$na_mean - median(x$na_mean, na.rm = TRUE)
+  x$na_mean_extreme = 1*(x$na_mean_rescale>0.5)
+  x
+})
+
+counter = 0
+
+
+timescale = c("3h","6h","9h","12h")
+for(k in 1:11){
+for(i in 1:4){
+  counter = counter + 1
+  Participant1 = affect_mean_use[[k]]
+  pnumber = Participant1$ParticipantNumber[1]
+  print(paste(pnumber, timescale[i]))
+  Participant1 = Participant1[Participant1["timescale_beforeESM"] == timescale[i], ]
+
+  ### positive affect
+  pa_affect_pred <- subset(Participant1,select = c(pa_mean_extreme,SOCIAL_min,COMMUNICATION_min,APP_USAGE_min,APPS_OPENED_number,Cluster_HOME_min,UNIQUE_STAYPOINTS_number,TIME_STATIONARY_min,TOTAL_MACHASHES_number,UNIQUE_MACHASHES_number,BLUETOOTH_TOTAL_MACHASHES_number,BLUETOOTH_UNIQUE_MACHASHES_number , CALL_TOTAL_min))
+  
+  omit = c()
+  for (j in 1:ncol(pa_affect_pred)){
+  if (sum(pa_affect_pred[,j], na.rm = TRUE) == 0){
+    name <- colnames(pa_affect_pred)[j]
+    omit = c(omit, name)
+  }
+  }
+  
+  pa_affect_pred <- pa_affect_pred[!(colnames(pa_affect_pred) %in% omit)]
+  pa_affect_pred = na.omit(pa_affect_pred)
+
+  n.all = nrow(pa_affect_pred)
+  test.idx = (round(0.75*n.all)):n.all
+  train.idx = 1:(test.idx-1)
+  
+  
+  model_pa<- train(as.factor(pa_mean_extreme) ~ ., data=pa_affect_pred[train.idx,], method="rf", na.action = na.omit) 
+  
+  resultpa = confusionMatrix(table(predict(model_pa,pa_affect_pred[test.idx,]),pa_affect_pred$pa_mean_extreme[test.idx]))
+  data_pa = data.frame(Participant = pnumber, timescale = timescale[i], outcome = "pa_extreme")
+  
+  if(counter == 1){
+  result_pa = cbind(data_pa,data.frame(t(resultpa$overall)))
+  }
+  
+  if(counter > 1){
+  result_pa = rbind(result_pa,cbind(data_pa,data.frame(t(resultpa$overall))))
+  }
+  
+  
+  ### negative affect
+  
+  na_affect_pred <- subset(Participant1,select = c(na_mean_extreme,SOCIAL_min,COMMUNICATION_min,APP_USAGE_min,APPS_OPENED_number,Cluster_HOME_min,UNIQUE_STAYPOINTS_number,TIME_STATIONARY_min,TOTAL_MACHASHES_number,UNIQUE_MACHASHES_number,BLUETOOTH_TOTAL_MACHASHES_number,BLUETOOTH_UNIQUE_MACHASHES_number , CALL_TOTAL_min))
+  
+   
+  omit = c()
+  for (j in 1:ncol(na_affect_pred)){
+  if (sum(na_affect_pred[,j], na.rm = TRUE) == 0){
+    name <- colnames(na_affect_pred)[j]
+    omit = c(omit, name)
+  }
+  }
+  
+na_affect_pred <- na_affect_pred[!(colnames(na_affect_pred) %in% omit)]
+ na_affect_pred = na.omit(na_affect_pred)
+
+  model_na<- train(as.factor(na_mean_extreme) ~ ., data=na_affect_pred[train.idx,], method="rf", na.action = na.roughfix) 
+  
+  resultna = confusionMatrix(table(predict(model_na,na_affect_pred[test.idx,]),na_affect_pred$na_mean_extreme[test.idx]))
+  data_na = data.frame(Participant = pnumber, timescale = timescale[i], outcome = "na_extreme")
+  
+  if(counter == 1){
+  result_na = cbind(data_na,data.frame(t(resultna$overall)))
+  }
+  
+  if(counter > 1){
+    result_na = rbind(result_na,cbind(data_na,data.frame(t(resultna$overall))))
+  }
+}
+}
+result = rbind(result_pa,result_na)
+```
+
+
+
+
+### Example 2 - Rolling Window
+In this simple example, we tested whether the correlation between different passive measures and the number of interactions that someone had changes over different rolling windows. Here, we aggregated the passive measures and number of interactions on a daily basis. Afterward we calculated the mean of a passive measure (e.g., percentage of being at Home) over different rolling windows. The following table illustrates how the data looks like (in wide format).
+
+```{r echo=FALSE}
+Feature <- c('All_Interactions', "CLUSTER_HOME_pct")
+counter = 0
+
+for(i in 1:length(BEHAPP_ID)){
+  ParticipantNumbr = BEHAPP_ID[i]
+for(k in 1:10){
+counter = counter + 1
+
+rolling2 = runner(PerDay[PerDay$ParticipantNumber == ParticipantNumbr,Feature[2]], k = k,function(x) mean(x, na.rm = TRUE), na_pad = TRUE)
+
+if(counter == 1){
+data = data.frame(Date = PerDay[PerDay$ParticipantNumber == ParticipantNumbr,"Date"],Feature1 = PerDay[PerDay$ParticipantNumber == ParticipantNumbr,Feature[1]],Feature2 = rolling2, ParticipantNumbr = ParticipantNumbr, k = k)
+}else{
+data = rbind(data, data.frame(Date = PerDay[PerDay$ParticipantNumber == ParticipantNumbr,"Date"], Feature1 = PerDay[PerDay$ParticipantNumber == ParticipantNumbr,Feature[1]],Feature2 = rolling2, ParticipantNumbr = ParticipantNumbr, k = k))
+}
+}
+}
+
+
+Example <- data[data$ParticipantNumbr == 117113,]
+Example <- Example[,colnames(Example) != "ParticipantNumbr"]
+Example <- spread(Example,k,Feature2)
+colnames(Example) <- c("Date", "Number Interactions",paste(rep("% Home, k =",10),1:10))
+
+DT::renderDataTable(Example[,1:7])
+```
+
+
+#### Descriptive plots
+The plots below show the variability of the number of interactions (bar charts) and chosen passive measure (e.g., % of being at Home, line graphs). The pink line displays the raw data of the chosen passive measure. The blue lines show the chosen passive measure calculated over different rolling windows.
+
+```{r echo=FALSE}
+shinyApp(
+  ui = fluidPage(
+    selectInput(
+      "PassiveMeasure",
+      label = "Passive Measure: ",
+      choices = c(
+        'SOCIAL_APPS_pct',
+        'APP_USAGE_pct',
+        'APPS_OPENED_norm',
+        'SOCIAL_APPS_min',
+        'COMMUNICATION_APPS_pct',
+        'COMMUNICATION_APPS_min',
+        'APP_USAGE_min',
+        'APPS_OPENED_number',
+        'CLUSTER_HOME_pct',
+        'UNIQUE_STAYPOINTS_norm',
+        'TIME_STATIONARY_pct',
+        'CLUSTER_HOME_min',
+        'UNIQUE_STAYPOINTS_number',
+        'TIME_STATIONARY_min',
+        'TOTAL_MACHASHES_norm',
+        'UNIQUE_MACHASHES_norm',
+        'CALL_incoming_pct',
+        'CALL_outgoing_pct',
+        'CALL_TOTAL_pct',
+        'MISSED_CALLS_norm'
+      ),
+      selected = "CLUSTER_HOME_pct"
+    ),
+    selectInput(
+      "BEHAPP_ID",
+      label = "Participant Number: ",
+      choices = c(117113,117114,117119,117121,117130,117129,117131,117134,117135,117137),
+      selected = c(117113,117114,117119,117121,117130,117129,117131,117134,117135,117137),
+      multiple = TRUE
+    ),
+    plotOutput("Plot")
+  ),
+  
+  server = function(input, output) {
+    toListen <- reactive({
+    list(input$PassiveMeasure,input$BEHAPP_ID)
+  })
+    observeEvent(toListen(), {
+      Passive = input$PassiveMeasure
+      Feature <- c('All_Interactions')
+      counter = 0
+      
+      BEHAPP_ID = input$BEHAPP_ID
+      
+      for (i in 1:length(BEHAPP_ID)) {
+        ParticipantNumbr = BEHAPP_ID[i]
+        for (k in 1:10) {
+          counter = counter + 1
+          
+          rolling2 = runner(PerDay[PerDay$ParticipantNumber == ParticipantNumbr, Passive], k = k, function(x)
+            mean(x, na.rm = TRUE), na_pad = TRUE)
+          
+          if (counter == 1) {
+            data = data.frame(
+              Date = PerDay[PerDay$ParticipantNumber == ParticipantNumbr, "Date"],
+              Feature1 = PerDay[PerDay$ParticipantNumber == ParticipantNumbr, Feature[1]],
+              Feature2 = rolling2,
+              ParticipantNumbr = ParticipantNumbr,
+              k = k
+            )
+          } else{
+            data = rbind(
+              data,
+              data.frame(
+                Date = PerDay[PerDay$ParticipantNumber == ParticipantNumbr, "Date"],
+                Feature1 = PerDay[PerDay$ParticipantNumber == ParticipantNumbr, Feature[1]],
+                Feature2 = rolling2,
+                ParticipantNumbr = ParticipantNumbr,
+                k = k
+              )
+            )
+          }
+        }
+      }
+      data[data$k != 1, ]$Feature1 = NA
+      max = max(data$Feature1, na.rm = TRUE)
+      maxy = max(data$Feature2,na.rm = TRUE)
+      
+      if(max > maxy){
+        scaleplot = 0.1*maxy
+      }else{
+        scaleplot = maxy/max
+      }
+
+      output$Plot = renderPlot({
+          ggplot(data, aes(x = Date)) +
+            geom_bar(stat = 'identity', aes(y = Feature1 * scaleplot)) +
+            geom_line(aes(y = Feature2, color = as.factor(k))) +
+            scale_color_manual(
+              values = c(
+                "#f95d6a",
+                "#90F1B3",
+                "#255e7e",
+                "#3CD8DA",
+                "#5383a1",
+                "#3CD8DA",
+                "#7faac6",
+                "#218CB3",
+                "#abd2ec",
+                "#c1e7ff"
+              )
+            ) +
+            ylab(Passive) +
+            theme_minimal() +
+            scale_y_continuous(
+              name = paste(Passive),
+              limits = c(0, maxy),
+              sec.axis = sec_axis( ~ . / scaleplot, name = 'Number of Interactions')
+            ) +
+            facet_wrap( ~ ParticipantNumbr, ncol = 2, scales = 'free')
+        
+      },  height = 500, width = 800)
+      
+    })
+  },
+  options = list(height = 730, width = 820)
+)
+```
+
+#### Correlation
+Next, I calculated the correlation between the number of interactions and a chosen passive measure. The plot below visualize the results. The right and the left plot are based on the same data and are just different visualization options. The first row of the left plot and the pink line of the right plot shows the overall correlation between the number of interactions and chosen passive measure (calculated over all participants). The other rows/blue lines show the correlation per participant. A star indicates that the result was significant.
+
+Interestingly, the overall correlation (i.e., calculated over all participants, first row (left), pink line (right)) seems to be relatively stable over different rolling windows, whereas the individual correlations seems fo be more fluctuating over different rolling windows (this is the same pattern as obsereved when we looked at the correlations between different aggregated passive measures). 
+
+This indicates that it is important to pay attention to which rolling window was chosen while interpreting individualized results/models. For example, if we want to validate passive measures as indicator for social behavior, we might want to do this for different time windows. This also might be important when we are interpreting the feature importance of (individualized) predictive models. 
+
+
+```{r echo=FALSE}
+shinyApp(
+  ui = fluidPage(
+    selectInput(
+      "PassiveMeasure",
+      label = "Passive Measure: ",
+      choices = c(
+        'SOCIAL_APPS_pct',
+        'APP_USAGE_pct',
+        'APPS_OPENED_norm',
+        'SOCIAL_APPS_min',
+        'COMMUNICATION_APPS_pct',
+        'COMMUNICATION_APPS_min',
+        'APP_USAGE_min',
+        'APPS_OPENED_number',
+        'CLUSTER_HOME_pct',
+        'UNIQUE_STAYPOINTS_norm',
+        'TIME_STATIONARY_pct',
+        'CLUSTER_HOME_min',
+        'UNIQUE_STAYPOINTS_number',
+        'TIME_STATIONARY_min',
+        'TOTAL_MACHASHES_norm',
+        'UNIQUE_MACHASHES_norm',
+        'CALL_incoming_pct',
+        'CALL_outgoing_pct',
+        'CALL_TOTAL_pct',
+        'MISSED_CALLS_norm'
+      ),
+      selected = "CLUSTER_HOME_pct"
+    ),
+    plotOutput("Plot")
+  ),
+  
+  server = function(input, output) {
+    observeEvent(input$PassiveMeasure, {
+      Passive = input$PassiveMeasure
+      Feature <- c('All_Interactions')
+      counter = 0
+      
+      BEHAPP_ID = c(117113,117114,117119,117121,117130,117129,117131,117134,117135,117137)
+      
+      for (i in 1:length(BEHAPP_ID)) {
+        ParticipantNumbr = BEHAPP_ID[i]
+        for (k in 1:10) {
+          counter = counter + 1
+          
+          rolling2 = runner(PerDay[PerDay$ParticipantNumber == ParticipantNumbr, Passive], k = k, function(x)
+            mean(x, na.rm = TRUE), na_pad = TRUE)
+          
+          if (counter == 1) {
+            data = data.frame(
+              Date = PerDay[PerDay$ParticipantNumber == ParticipantNumbr, "Date"],
+              Feature1 = PerDay[PerDay$ParticipantNumber == ParticipantNumbr, Feature[1]],
+              Feature2 = rolling2,
+              ParticipantNumbr = ParticipantNumbr,
+              k = k
+            )
+          } else{
+            data = rbind(
+              data,
+              data.frame(
+                Date = PerDay[PerDay$ParticipantNumber == ParticipantNumbr, "Date"],
+                Feature1 = PerDay[PerDay$ParticipantNumber == ParticipantNumbr, Feature[1]],
+                Feature2 = rolling2,
+                ParticipantNumbr = ParticipantNumbr,
+                k = k
+              )
+            )
+          }
+        }
+      }
+      Correlation = data %>%
+        group_by(ParticipantNumbr, k) %>%
+        summarize(
+          "Size" = "thin",
+          "Correlation" = ifelse(
+            sum(Feature2, na.rm = TRUE) != 0,
+            as.numeric(cor.test(Feature1, Feature2)$estimate),
+            NA
+          ),
+          "p.value" = ifelse(sum(Feature2, na.rm = TRUE) != 0, round(cor.test(Feature1, Feature2)$p.value, 2), NA)
+        )
+      
+      Correlation$ParticipantNumbr <-
+        as.character(Correlation$ParticipantNumbr)
+      
+      OverallCorrelation = data %>%
+        group_by(k) %>%
+        summarize(
+          "Size" = "thick",
+          "ParticipantNumbr" = "Overall",
+          Correlation = as.numeric(cor.test(Feature1, Feature2)$estimate),
+          "p.value" = round(cor.test(Feature1, Feature2)$p.value, 2)
+        )
+      
+      Correlation = rbind(Correlation, OverallCorrelation)
+      
+      
+      
+      Correlation$sign = "non-sign"
+      Correlation[!is.na(Correlation$p.value) &
+                    Correlation$p.value <= 0.05, ]$sign = "sign"
+      
+      Correlation$star = ""
+      Correlation[!is.na(Correlation$p.value) &
+                    Correlation$p.value <= 0.05, ]$star = "*"
+      
+      
+      cor1 =  ggplot(Correlation,
+                     aes(
+                       y = as.factor(ParticipantNumbr),
+                       x = as.factor(k),
+                       fill = Correlation
+                     )) +
+        geom_tile() +
+        scale_fill_gradient2(low = "#D7191C", mid = "white", high = "#2C7BB6") +
+        geom_text(aes(label = star), color = "black", size = 4) +
+        ylab("") +
+        xlab("") +
+        ggtitle(paste("Correlation between", Feature[1], "&", Passive)) +
+        theme_minimal()
+      
+      
+      cor2 = ggplot(Correlation, aes(x = k)) +
+        geom_line(aes(
+          y = Correlation,
+          color = as.factor(ParticipantNumbr),
+          size = Size
+        )) +
+        geom_point(aes(
+          y = Correlation,
+          color = as.factor(ParticipantNumbr),
+          shape = sign
+        )) +
+        scale_size_manual(values = c(1, 0.5)) +
+        scale_shape_manual(values = c("sign" = 8, "non-sign" = 16)) +
+        xlab("Rolling Window") +
+        theme_minimal() +
+        theme(panel.grid.minor.y = element_blank()) +
+        scale_x_discrete(limits = c("k = 1", paste(rep("k =", 9), 2:10))) +
+        ggtitle(paste("Correlation between", Feature[1], "&", Passive)) +
+        guides(shape = guide_legend(""),
+               size = FALSE,
+               color = guide_legend("")) +
+            scale_color_manual(
+              values = c("#08324f","#90F1B3", "#255e7e", "#3CD8DA", "#5383a1", "#3CD8DA", "#7faac6", "#218CB3", "#abd2ec", "#c1e7ff", "#f95d6a"))
+      
+      
+      output$Plot = renderPlot({ggarrange(cor1,cor2)
+      },  height = 400, width = 800)
+      
+    })
+  },
+  options = list(height = 500, width = 820)
+)
+```
+
+
+### Prediciton or other analysis with rolling window?
+
+```{r eval=FALSE, include=FALSE}
+Passive = c("COMMUNICATION_APPS_pct","APP_USAGE_pct","APPS_OPENED_norm","CLUSTER_HOME_pct","UNIQUE_STAYPOINTS_norm","UNIQUE_MACHASHES_norm")
+counter = 0
+for(j in 1:length(Passive)){
+      for (i in 1:length(BEHAPP_ID)) {
+        ParticipantNumbr = BEHAPP_ID[i]
+        for (k in 1:10) {
+          counter = counter + 1
+          
+          rolling2 = runner(PerDay[PerDay$ParticipantNumber == ParticipantNumbr, Passive[j]], k = k, function(x)
+            mean(x, na.rm = TRUE), na_pad = TRUE)
+          
+          if (counter == 1) {
+            data = data.frame(
+              Date = PerDay[PerDay$ParticipantNumber == ParticipantNumbr, "Date"],
+              Feature1 = PerDay[PerDay$ParticipantNumber == ParticipantNumbr, Feature[1]],
+              Feature2 = rolling2,
+              ParticipantNumbr = ParticipantNumbr,
+              k = k,
+              Feature = Passive[j]
+            )
+          } else{
+            data = rbind(
+              data,
+              data.frame(
+                Date = PerDay[PerDay$ParticipantNumber == ParticipantNumbr, "Date"],
+                Feature1 = PerDay[PerDay$ParticipantNumber == ParticipantNumbr, Feature[1]],
+                Feature2 = rolling2,
+                ParticipantNumbr = ParticipantNumbr,
+                k = k,
+                Feature = Passive[j]
+              )
+            )
+          }
+        }
+      }
+}
+
+```
+
+```{r eval=FALSE, include=FALSE}
+### Regression
+library(lme4)
+resultMulti <- list()
+
+for(k in 1:10){
+dataReg <- data[data$k == k,] %>% spread(Feature, Feature2)
+colnames(dataReg)[colnames(dataReg) == 'Feature1'] <- 'All_Interactions'
+colnames(dataReg)[colnames(dataReg) == 'ParticipantNumbr'] <- 'ParticipantNumber'
+
+formula <- as.formula(paste("All_Interactions ~ COMMUNICATION_APPS_pct +APP_USAGE_pct + +APPS_OPENED_norm+CLUSTER_HOME_pct+UNIQUE_STAYPOINTS_norm+UNIQUE_MACHASHES_norm"))
+
+formulaMulti <- as.formula(paste("All_Interactions ~ COMMUNICATION_APPS_pct +APP_USAGE_pct + +APPS_OPENED_norm+CLUSTER_HOME_pct+UNIQUE_STAYPOINTS_norm+UNIQUE_MACHASHES_norm + (1 | ParticipantNumber)"))
+
+resultMulti[[k]] <- lmer(formulaMulti, data=dataReg)
+}
+
+
+dwplot(resultMulti, vline = geom_vline(
+               xintercept = 0,
+               colour = "grey60",
+               linetype = 2
+           )) +
+  theme_minimal() +
+  ggtitle("")
+
+
+```
+
+
+
+```{r eval=FALSE, include=FALSE}
+
+###
+TestData = PerDay[PerDay$ParticipantNumber == 117134,]
+TestData = TestData[1:30,]
+
+
+myTimeControl <- trainControl(method = "timeslice",
+                              initialWindow = 7,
+                              horizon = 1,
+                              fixedWindow = TRUE)
+
+model<- train(formula, data=TestData, trControl = myTimeControl, method="pls", na.action = na.omit) 
+
+
+
+# https://topepo.github.io/caret/data-splitting.html#data-splitting-for-time-series
+
+timeSlices <- createTimeSlices(1:nrow(TestData), 
+                   initialWindow = 7, horizon = 1, fixedWindow = TRUE)
+
+
+trainSlices <- timeSlices[[1]]
+testSlices <- timeSlices[[2]]
+
+
+#The results in folds can be used as inputs into the index argument of the trainControl function
+
+
+
+for(i in 1:length(trainSlices)){
+model<- train(formula, data=TestData[trainSlices[[1]],], method="pls", na.action = na.omit) 
+
+pred <- predict(model,TestData[testSlices[[1]],])
+
+true <- TestData$All_Interactions[testSlices[[1]]]
+}
+
+#####
+folds <- groupKFold(PerDay$ParticipantNumber, k = 7) 
+ctrl <- trainControl(index = folds, method = 'cv')
+z
+train <- PerDay[folds[[1]],]
+test <- PerDay[-folds[[1]],]
+
+model <- train(formula, data=train, method="lm", na.action = na.omit) 
+
+
+```
+

@@ -21,16 +21,19 @@ library("dotwhisker")
 library("stargazer")
 library("lme4")
 
+
+###### Scripts used ###########
+# 0. Python script
+# (1. data_matching.R)
+# 2. Calculation Correlation.R
+# 3. ParallelComputingML.R
+
 ###### Load dataframes #########
 ################################
 
-#Between old and new dataset there might be small differences for 24h because sometimes the day was in the raw data even if nothing was recorded (for bluetooth, the rest should be similar) (example 117130)
-
 ####### Affect data #######
-#Affect_Passive <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_220422")
-
 #24h missing
-Affect_Passive <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_090622_24missing.csv")
+Affect_Passive <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_2709_24hmissing.csv")
 Affect_Passive <- Affect_Passive[Affect_Passive$questionListName != "Morning assessment 1" & Affect_Passive$questionListName != "Morning Assessment",]
 
 #12h
@@ -63,7 +66,7 @@ Affect_Passive_no_NA[is.na(Affect_Passive_no_NA)] <- 0
 
 ```
 
-Missing data
+### Missing data
 ```{r eval=FALSE, include=FALSE}
 
 calculate_missingdata <- function(Affect_Passive){
@@ -81,6 +84,7 @@ Affect_Passive_subset_explore <- subset(Affect_Passive,
 P117119 <- colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117119 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))
 
 P117130 <- colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117130 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))
+
 
 Overall <- colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))
                
@@ -103,24 +107,29 @@ return(MissingValues)
 }
 
 missing1 <- calculate_missingdata(Affect_Passive)
-missing1 <- data.frame(missing1, cond = c(rep("Sensor Specific")), missing =  c(rep("Exclude: 24h")))
+missing1 <- data.frame(missing1, cond = c(rep("Sensor Specific")), missing =  c(rep("Threshold: 24h")))
 
 missing2 <- calculate_missingdata(Affect_Passive_allsensor_NA)
-missing2 <- data.frame(missing2, cond = c(rep("Non Sensor Specific")), missing =  c(rep("Exclude: 24h")))
+missing2 <- data.frame(missing2, cond = c(rep("Non Sensor Specific")), missing =  c(rep("Threshold: 24h")))
 
 missing3 <- calculate_missingdata(Affect_Passive_18m)
-missing3 <- data.frame(missing3, cond = c(rep("Sensor Specific")), missing =  c(rep("Exclude: 18h")))
+missing3 <- data.frame(missing3, cond = c(rep("Sensor Specific")), missing =  c(rep("Threshold: 18h")))
 
 missing4 <- calculate_missingdata(Affect_Passive_allsensor_NA_18m)
-missing4 <- data.frame(missing4, cond = c(rep("Non Sensor Specific")), missing =  c(rep("Exclude: 18h")))
+missing4 <- data.frame(missing4, cond = c(rep("Non Sensor Specific")), missing =  c(rep("Threshold: 18h")))
 
 missing5 <- calculate_missingdata(Affect_Passive_12m)
-missing5 <- data.frame(missing5, cond = c(rep("Sensor Specific")), missing =  c(rep("Exclude: 12h")))
+missing5 <- data.frame(missing5, cond = c(rep("Sensor Specific")), missing =  c(rep("Threshold: 12h")))
 
 missing6 <- calculate_missingdata(Affect_Passive_allsensor_NA_12m)
-missing6 <- data.frame(missing6, cond = c(rep("Non Sensor Specific")), missing =  c(rep("Exclude: 12h")))
+missing6 <- data.frame(missing6, cond = c(rep("Non Sensor Specific")), missing =  c(rep("Threshold: 12h")))
 
 missing_plotdata <- rbind(missing1,missing2,missing3,missing4,missing5,missing6)
+
+P117134 <- colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117134 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))
+
+unique(as.Date(Affect_Passive_subset_explore$Date[Affect_Passive_subset_explore$ParticipantNumber == 117134 & Affect_Passive_subset_explore$timescale_beforeESM == "9h"]))
+
 ```
 
 ```{r eval=FALSE, include=FALSE}
@@ -128,28 +137,32 @@ missing_plotdata <- missing_plotdata
 plot_missing_gps <- ggplot(missing_plotdata[missing_plotdata$index == "TIME_STATIONARY_min",], aes(fill=cond, y=P117119_p, x=missing)) + 
     geom_bar(position="dodge", stat="identity") +
   theme_minimal() +
-  scale_fill_manual(values = c("#21918c","#440154"),breaks=c('Sensor Specific', 'Non Sensor Specific'),  labels = c("One measure excluded", "All measures excluded")) +
+  scale_fill_manual(values = c("#21918c","#440154"),breaks=c('Sensor Specific', 'Non Sensor Specific'),  labels = c("Only excluded if GPS is missing", "Excluded based on other measures")) +
   theme( legend.title=element_blank()) +
-  ggtitle("Exclusion GPS Data (Participant A)") +
+  ggtitle("") +
   ylab("Percentage of excluded Data") +
   xlab("") +
-  coord_cartesian(ylim=c(0,0.5)) +
-  theme(legend.text = element_text(size=10)) 
+  #coord_cartesian(ylim=c(0,0.5)) +
+  theme(legend.text = element_text(size=10)) +
+  geom_text(aes(label = paste("n =", round(P117119, 2))),position = position_dodge(0.8), vjust = -0.2)
+
+  
 
 plot_missing_gps_poster <- ggplot(missing_plotdata[missing_plotdata$index == "TIME_STATIONARY_min",], aes(fill=cond, y=P117119_p, x=missing)) + 
     geom_bar(position="dodge", stat="identity") +
   theme_minimal() +
-  scale_fill_manual(values = c("#21918c","#440154"),breaks=c('Sensor Specific', 'Non Sensor Specific'),  labels = c("One measure excluded", "All measures excluded")) +
+  scale_fill_manual(values = c("#21918c","#440154"),breaks=c('Sensor Specific', 'Non Sensor Specific'),  labels = c("Only excluded if GPS is missing", "Excluded based on frequently sampled measures")) +
   theme( legend.title=element_blank()) +
   ggtitle("% of excluded GPS Data using different Strategies") +
   ylab("Percentage of excluded Data") +
   xlab("") +
 #  coord_cartesian(ylim=c(0,0.5)) +
   theme(legend.text = element_text(size=14),legend.position="bottom", axis.text = element_text(size = 14),axis.title=element_text(size=16), plot.title = element_text(size=18)) 
+
 ggsave(
   "plot_missingcount_poster.jpg",
-  plot = plot_missing_gps_poster,
-  width = 16,
+  plot = plot_missing_gps,
+  width = 18,
   height = 14,
   units = c("cm"),
   dpi = 300,
@@ -183,153 +196,6 @@ ggsave(
 
 ```
 
-### Plot for SAA
-```{r eval=FALSE, include=FALSE}
-missing_plotdata <- missing_plotdata[missing_plotdata$cond == "Sensor Specific", ]
-plot_missing_gps <- ggplot(missing_plotdata[missing_plotdata$index == "TIME_STATIONARY_min",], aes(fill=cond, y=P117119_p, x=missing)) + 
-    geom_bar(position="dodge", stat="identity") +
-  theme_minimal() +
-  scale_fill_manual(values = c("#21918c") ,breaks=c('Sensor Specific')) +
-  theme( legend.title=element_blank()) +
-  ggtitle("Exclusion GPS Data") +
-  ylab("Percentage of excluded Data") +
-  xlab("") +
-  coord_cartesian(ylim=c(0,0.5)) +
-  theme(legend.text = element_text(size=10)) 
-
-plot_missing_gps_poster <- ggplot(missing_plotdata[missing_plotdata$index == "TIME_STATIONARY_min",], aes(fill=cond, y=P117119_p, x=missing)) + 
-    geom_bar(position="dodge", stat="identity") +
-  theme_minimal() +
-  scale_fill_manual(values = c("#21918c","#440154"),breaks=c('Sensor Specific', 'Non Sensor Specific')) +
-  theme( legend.title=element_blank()) +
-  ggtitle("% of excluded GPS Data using different Strategies") +
-  ylab("Percentage of excluded Data") +
-  xlab("") +
-#  coord_cartesian(ylim=c(0,0.5)) +
-  theme(legend.text = element_text(size=14),legend.position="bottom", axis.text = element_text(size = 14),axis.title=element_text(size=16), plot.title = element_text(size=18)) 
-  
-ggsave(
-  "plot_missingcount_SAA.jpg",
-  plot = plot_missing_gps,
-  width = 16,
-  height = 14,
-  units = c("cm"),
-  dpi = 300,
-  limitsize = TRUE,
-  bg = NULL)
-
-plot_missing_call <- ggplot(missing_plotdata[missing_plotdata$index == "CALL_TOTAL_min",], aes(fill=cond, y=P117130_p, x=missing)) + 
-    geom_bar(position="dodge", stat="identity") +
-  theme_minimal() +
-  scale_fill_manual(values = c("#21918c","#440154"),breaks=c('Sensor Specific', 'Non Sensor Specific')) +
-  theme( legend.title=element_blank()) +
-  ggtitle("Exclusion Call Data (Participant B)") +
-  ylab("Percentage of excluded Data") +
-  xlab("") +
-  coord_cartesian(ylim=c(0,0.5)) +
-  theme(legend.text = element_text(size=10)) 
-
-plot_missingcount <- ggarrange(plot_missing_gps,plot_missing_call, common.legend =  TRUE, legend = "right")
-
-plot_missingcount
-
-ggsave(
-  "plot_missingcount.jpg",
-  plot = plot_missingcount,
-  width = 25,
-  height = 13,
-  units = c("cm"),
-  dpi = 300,
-  limitsize = TRUE,
-  bg = NULL)
-
-```
-
-
-
-
-#Plot Missing Data (for Poster)
-```{r eval=FALSE, include=FALSE}
-Affect_Passive_sube <- Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "24h",]
-Affect_Passive_sube <- Affect_Passive_sube[1:52,]
-
-plota <- ggplot(Affect_Passive_sube) +
-  geom_line(aes(y = APP_USAGE_min, x = as.POSIXct(Date),color = "App Usage")) +
-  geom_line(aes(y = TOTAL_MACHASHES_number/20, x = as.POSIXct(Date),color = "Total Wifi Connections")) +
-  theme_minimal() +
-  xlab("") + 
-  ylab("") +
-  labs(color='') +
-  scale_y_continuous(
-              name = "App Usage",
-              sec.axis = sec_axis( ~ . * 20, name = 'Wifi Connections')
-            ) +
-  ggtitle("a) Only the missing measure is excluded") +
-  scale_color_manual(name = "",values = c( "App Usage" = "#21918c", "Total Wifi Connections" = "#440154")) +
-  annotate(
-    geom = "curve", x = as.POSIXct(Affect_Passive_sube$Date[40]), y = 11, xend =as.POSIXct(Affect_Passive_sube$Date[35]), yend = 9, 
-    curvature = .3, arrow = arrow(length = unit(2, "mm"))
-  ) +
-  annotate(geom = "text", x = as.POSIXct(Affect_Passive_sube$Date[40]), y = 11, label = "App Usage included,\n Wifi excluded", hjust = "left") +
-  theme(legend.text = element_text(size=12))
-
-
-Affect_Passive_sube <- Affect_Passive_allsensor_NA[Affect_Passive_allsensor_NA$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA$timescale_beforeESM == "24h",]
-Affect_Passive_sube <- Affect_Passive_sube[1:50,]
-
-plotb <- ggplot(Affect_Passive_sube) +
-  geom_line(aes(y = APP_USAGE_min, x = as.POSIXct(Date),color = "App Usage")) +
-  geom_line(aes(y = TOTAL_MACHASHES_number/20, x = as.POSIXct(Date),color = "Total Wifi Connections")) +
-  theme_minimal() +
-  xlab("") + 
-  ylab("") +
-  labs(color='') +
-  scale_y_continuous(
-              name = "App Usage",
-              sec.axis = sec_axis( ~ . * 20, name = 'Wifi Connections')
-            ) +
-  ggtitle("b) All measures are excluded, if one measure is missing") +
-  scale_color_manual(name = "",values = c( "App Usage" = "#21918c", "Total Wifi Connections" = "#440154")) +
-  annotate(
-    geom = "curve", x = as.POSIXct(Affect_Passive_sube$Date[40]), y = 11, xend =as.POSIXct(Affect_Passive_sube$Date[35]), yend = 9, 
-    curvature = .3, arrow = arrow(length = unit(2, "mm"))
-  ) +
-  annotate(geom = "text", x = as.POSIXct(Affect_Passive_sube$Date[40]), y = 11, label = "Both measures \n excluded", hjust = "left") +
-  theme(legend.text = element_text(size=12))
-
-
-plot_exclusion <- ggarrange(plota, plotb, ncol = 1, common.legend = TRUE, legend = "bottom") 
-
-ggsave(
-  "plotexclude.jpg",
-  plot = plot_exclusion,
-  width = 17,
-  height = 13,
-  units = c("cm"),
-  dpi = 300,
-  limitsize = TRUE,
-  bg = NULL)
-
-```
-
-### Plot Missing data (only to explore not for paper)
-```{r eval=FALSE, include=FALSE}
-Affect_Passive_sube <- Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "24h",]
-Affect_Passive_sube <- Affect_Passive_sube[1:50,]
-
-#117130
-Affect_Passive_allsensor_NA
-
-plota <- ggplot() +
-  geom_line(aes(y = Affect_Passive_allsensor_NA$Cluster_HOME_min[Affect_Passive_allsensor_NA$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA$timescale_beforeESM == "24h"], x = as.POSIXct(Affect_Passive_allsensor_NA$Date[Affect_Passive_allsensor_NA$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA$timescale_beforeESM == "24h"]),color = "24 hour")) +
-   geom_line(aes(y = Affect_Passive_allsensor_NA_18m$Cluster_HOME_min[Affect_Passive_allsensor_NA_18m$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA_18m$timescale_beforeESM == "24h"], x = as.POSIXct(Affect_Passive_allsensor_NA_18m$Date[Affect_Passive_allsensor_NA_18m$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA_18m$timescale_beforeESM == "24h"]),color = "18 hour")) +
-  geom_line(aes(y = Affect_Passive_allsensor_NA_12m$Cluster_HOME_min[Affect_Passive_allsensor_NA_12m$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA_12m$timescale_beforeESM == "24h"], x = as.POSIXct(Affect_Passive_allsensor_NA_12m$Date[Affect_Passive_allsensor_NA_12m$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA_12m$timescale_beforeESM == "24h"]),color = "12 hour")) +
-  theme_minimal() +
-  xlab("") + 
-  ylab("")
-
-
-```
 
 ### VISUALIZATION
 In this example we test whether the level of aggregation matters
@@ -343,7 +209,7 @@ Descriptive Plots
 library(grid)
 source("https://raw.githubusercontent.com/datavizpyr/data/master/half_flat_violinplot.R")
 
-plot_data <- function(Affect_Passive){
+
 Affect_Passive$timescale_beforeESM <- ordered(Affect_Passive$timescale_beforeESM,levels = c("1h","3h","6h","9h","12h","24h"))
 
 Affect_Passive$timescale_beforeESM_num <- recode(Affect_Passive$timescale_beforeESM, "1h" = 1, "3h" = 3,"6h" = 6,"9h" = 9,"12h" = 12, "24h" = 24 )
@@ -361,21 +227,54 @@ plot1 <- ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),]
   theme(axis.text.x = element_text(angle = 45),legend.key = element_blank(),panel.background  = element_blank(), panel.grid = element_line(colour = "black"), panel.grid.major = element_line(size = rel(0.1)), panel.grid.minor = element_line(size = rel(0.05)) ) 
 
 
-plot2 <- ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),], aes(x=timescale_beforeESM, y=Cluster_HOME_min/timescale_beforeESM_num/60, fill = timescale_beforeESM, color = timescale_beforeESM)) + 
-  geom_flat_violin(alpha = 0.5, position = position_nudge(x = .3, y = 0)) +
+
+#### Add percentages for annotation
+dat_text <- data.frame(label = c(mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "1h" ,"Cluster_HOME_min"], na.rm = TRUE),mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "3h" ,"Cluster_HOME_min"], na.rm = TRUE),mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "6h" ,"Cluster_HOME_min"], na.rm = TRUE), mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "9h" ,"Cluster_HOME_min"], na.rm = TRUE), mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "12h" ,"Cluster_HOME_min"], na.rm = TRUE), mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "24h" ,"Cluster_HOME_min"], na.rm = TRUE)),
+                       label2 = c(mean(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "1h" ,"Cluster_HOME_min"] == 60, na.rm = TRUE),mean(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "3h" ,"Cluster_HOME_min"] == 180, na.rm = TRUE),mean(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "6h" ,"Cluster_HOME_min"] == 360 , na.rm = TRUE), mean(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "9h" ,"Cluster_HOME_min"] == 540, na.rm = TRUE), mean(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "12h" ,"Cluster_HOME_min"] == 720, na.rm = TRUE), mean(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "24h" ,"Cluster_HOME_min"] == 1440, na.rm = TRUE)),timescale_beforeESM = c("1h","3h","6h","9h","12h", "24h"))
+dat_text$label <- paste(round(dat_text$label*100),"%", sep = "")
+dat_text$label2 <- paste(round(dat_text$label2*100),"%", sep = "")
+dat_text$timescale_beforeESM <- factor(dat_text$timescale_beforeESM, ordered = TRUE, 
+                                levels = c("1h","3h","6h","9h","12h", "24h"))
+
+plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),] %>%  ggplot(., aes( x = 1, y=Cluster_HOME_min/timescale_beforeESM_num/60, fill = timescale_beforeESM, color = timescale_beforeESM)) + 
+  geom_flat_violin(alpha = 0.5, position = position_nudge(x = .3, y = 0), width = 0.6) +
   geom_point(position = position_jitter(seed = 1, width = 0.15)) +
   theme_minimal() +
   xlab("") + 
   ylab("") +
   labs(fill='', color = '') +
-  theme(
-  axis.text.x = element_blank(),
-  axis.ticks = element_blank())
+  theme(legend.position = "none", axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), text = element_text(size= 14), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  facet_grid(cols = vars(timescale_beforeESM)) +
+  scale_color_manual(breaks = c("1h","3h","6h","9h","12h", "24h"),
+                        values=c("#440154", "#443983", "#31688e","#21918c","#35b779","#90d743")) +
+  scale_fill_manual(breaks = c("1h","3h","6h","9h","12h", "24h"),
+                        values=c("#440154", "#443983", "#31688e","#21918c","#35b779","#90d743"))
 
+ggsave(
+  "plot_117119_simple.jpg",
+  plot = plot2,
+  width = 20,
+  height = 6,
+  units = c("cm"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = NULL)
+
+
+
+ggsave(
+  "plot_117119_simple.jpg",
+  plot = plot2,
+  width = 17,
+  height = 5,
+  units = c("cm"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = NULL)
 
 plot_117119 <- ggarrange(plot1, plot2, ncol = 1, common.legend = TRUE, legend = "right")
-return(plot_117119)
-}
+
 
 ggsave(
   "plot_117119_2.jpg",
@@ -399,16 +298,42 @@ plot1 <- ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),]
   facet_grid(cols = vars(timescale_beforeESM)) +
   theme(axis.text.x = element_text(angle = 45),legend.key = element_blank(),panel.background  = element_blank(), panel.grid = element_line(colour = "black"), panel.grid.major = element_line(size = rel(0.1)), panel.grid.minor = element_line(size = rel(0.05)) ) 
 
-plot2 <- ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),], aes(x=timescale_beforeESM, y=CALL_TOTAL_min/timescale_beforeESM_num/60, fill = timescale_beforeESM, color = timescale_beforeESM)) + 
-  geom_flat_violin(alpha = 0.5, position = position_nudge(x = .3, y = 0)) +
+
+
+#### Add percentages for annotation
+dat_text <- data.frame(label = c(mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "1h" ,"CALL_TOTAL_min"]),mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "3h" ,"CALL_TOTAL_min"]),mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "6h" ,"CALL_TOTAL_min"]), mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "9h" ,"CALL_TOTAL_min"]), mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "12h" ,"CALL_TOTAL_min"]), mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "24h" ,"CALL_TOTAL_min"])), timescale_beforeESM = c("1h","3h","6h","9h","12h", "24h"))
+dat_text$label <- paste(round(dat_text$label*100),"%", sep = "")
+
+dat_text$timescale_beforeESM <- factor(dat_text$timescale_beforeESM, ordered = TRUE, 
+                                levels = c("1h","3h","6h","9h","12h", "24h"))
+
+plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),] %>%  ggplot(., aes( x = 1, y=CALL_TOTAL_min/timescale_beforeESM_num/60, fill = timescale_beforeESM, color = timescale_beforeESM)) + 
+  geom_flat_violin(alpha = 0.5, position = position_nudge(x = .3, y = 0), width = 0.6) +
   geom_point(position = position_jitter(seed = 1, width = 0.15)) +
   theme_minimal() +
   xlab("") + 
   ylab("") +
   labs(fill='', color = '') +
-  theme(
-  axis.text.x = element_blank(),
-  axis.ticks = element_blank())
+  theme(legend.position = "none", axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), text = element_text(size= 14), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  geom_text(data    = dat_text,mapping = aes(x = -Inf, y = -Inf, label = label),x   = 1.47,y   = 0.03) +
+  geom_curve(data = dat_text, x = 1.45, y = 0.022, xend = 1.40, yend = 0, curvature = .1, arrow = arrow(length = unit(2, "mm"))) +
+  facet_grid(cols = vars(timescale_beforeESM)) +
+  scale_color_manual(breaks = c("1h","3h","6h","9h","12h", "24h"),
+                        values=c("#440154", "#443983", "#31688e","#21918c","#35b779","#90d743")) +
+  scale_fill_manual(breaks = c("1h","3h","6h","9h","12h", "24h"),
+                        values=c("#440154", "#443983", "#31688e","#21918c","#35b779","#90d743"))
+
+ggsave(
+  "plot_117130_simple.jpg",
+  plot = plot2,
+  width = 20,
+  height = 6,
+  units = c("cm"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = NULL)
+
 
 
 plot_117130 <- ggarrange(plot1, plot2, ncol = 1, common.legend = TRUE, legend = "right") 
@@ -424,6 +349,16 @@ ggsave(
   bg = NULL)
 
 ```
+
+
+```{r eval=FALSE, include=FALSE}
+
+sum_stat_Home = Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),] %>% group_by(timescale_beforeESM) %>% summarise(mean = mean(Cluster_HOME_min/timescale_beforeESM_num/60, na.rm = TRUE), sd = sd(Cluster_HOME_min/timescale_beforeESM_num/60, na.rm = TRUE))
+
+sum_stat_Call = Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),] %>% group_by(timescale_beforeESM) %>% summarise(mean = mean(CALL_TOTAL_min/timescale_beforeESM_num, na.rm = TRUE), sd = sd(CALL_TOTAL_min/timescale_beforeESM_num, na.rm = TRUE))
+
+```
+
 
 Descriptive Figure as shiny app:
 
@@ -554,30 +489,109 @@ CorrelationSampleTrue_noNA <- calculateCorr_pa(Affect_Passive_no_NA)
 
 ```
 
-In the next lines of code I did the calculation for the paper
+#### Giving Raw numbers
 
 ```{r eval=FALSE, include=FALSE}
+# Affect_Passive (24h, sensor specific)
+# Affect_Passive_12m
+# Affect_Passive_18m
+
+# Affect_Passive_allsensor_NA
+# Affect_Passive_allsensor_NA_12m
+# Affect_Passive_allsensor_NA_18m
+
+
+####### SENSOR SPECIFIC #######
+#### HOME
+#24h
 CorrelationSampleTrue[CorrelationSampleTrue$ParticipantNumber == 117119 & CorrelationSampleTrue$Feature == "Cluster_HOME_min",]
+
+#18h
+
+#12h
+
+#### Calls (No Exclusion)
 
 CorrelationSampleTrue[CorrelationSampleTrue$ParticipantNumber == 117130 & CorrelationSampleTrue$Feature == "CALL_TOTAL_min",] #Sensor specific?/ No exclusion
 
-### Missing Values all na
-CorrelationSampleTrue_allNA[CorrelationSampleTrue_allNA$ParticipantNumber == 117119 & CorrelationSampleTrue_allNA$Feature == "Cluster_HOME_min",]
+####### NON-SENSOR SPECIFIC #######
+#### HOME
+# 24h/18h
 
-CorrelationSampleTrue_allNA[CorrelationSampleTrue_allNA$ParticipantNumber == 117130 & CorrelationSampleTrue_allNA$Feature == "CALL_TOTAL_min",]
+#12h
 
-### Missing Values 
-CorrelationSampleTrue_noNA[CorrelationSampleTrue_noNA$ParticipantNumber == 117119 & CorrelationSampleTrue_noNA$Feature == "Cluster_HOME_min",]
+#### Calls
+# 24h/18h
 
-CorrelationSampleTrue_noNA[CorrelationSampleTrue_noNA$ParticipantNumber == 117130 & CorrelationSampleTrue_noNA$Feature == "CALL_TOTAL_min",]
+#12h
+
+
 
 ```
 
-Plots Poster:
+
+#### Plots Paper/ Poster
+```{r eval=FALSE, include=FALSE}
+#Try out scatter plots
+
+ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),], aes(x = CALL_TOTAL_min, y = pa_mean )) +
+  geom_point(colour = "#440154FF" ) +
+  geom_smooth(method="lm", se=TRUE, fullrange=FALSE, level=0.95, colour ="#21908CFF", fill ="#21908CFF") +
+  stat_cor(method = "pearson") +
+  theme_minimal() +
+  facet_grid(cols = vars(timescale_beforeESM), scales="free_x") +
+  ylim(c(0,10))
+
+Home_scatter <- ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),], aes(x = Cluster_HOME_min, y = pa_mean )) +
+  geom_point(colour = "#440154FF" ) +
+  geom_smooth(method="lm", se=TRUE, fullrange=FALSE, level=0.95, colour ="#21908CFF", fill ="#21908CFF") +
+  stat_cor(method = "pearson",p.accuracy = 0.01, r.accuracy = 0.01, label.y = 0.3, label.sep = ",", label.x = 0, na.rm = TRUE, cor.coef.name = c("r")) +
+  theme_minimal() +
+  facet_grid(cols = vars(timescale_beforeESM), scales="free_x") +
+  ylim(c(0,10)) +
+  ylab("Positive Affect") +
+  xlab("Minutes beeing at Home")  +
+theme(text = element_text(size= 16), axis.text.x=element_text(hjust = 0.8))
+
+ggsave("plot_home_scatter.jpg",plot = Home_scatter, width = 26, height =8,units = c("cm"),dpi = 300,limitsize = FALSE,bg = NULL)
+
+Phone_scatter <- ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),], aes(x = CALL_TOTAL_min, y = pa_mean )) +
+  geom_point(colour = "#440154FF" ) +
+  geom_smooth(method="lm", se=TRUE, fullrange=FALSE, level=0.95, colour ="#21908CFF", fill ="#21908CFF") +
+  stat_cor(method = "pearson",p.accuracy = 0.01, r.accuracy = 0.01, label.y = 0.3, label.sep = ",", label.x = 0, na.rm = TRUE, cor.coef.name = c("r")) +
+  theme_minimal() +
+  facet_grid(cols = vars(timescale_beforeESM), scales="free_x") +
+  ylim(c(0,10)) +
+  ylab("Positive Affect") +
+  xlab("Minutes of Calling")  +
+theme(text = element_text(size= 16), axis.text.x=element_text(hjust = 0.8))
+
+ggsave("plot_phone_scatter.jpg",plot = Phone_scatter, width = 26, height =8,units = c("cm"),dpi = 300,limitsize = FALSE,bg = NULL)
+
+```
+
+
 ```{r eval=FALSE, include=FALSE}
 ### Always check if ordered factor is correct ####
 
 ##### Exclude Missing Values sensor specific
+
+cor_new = CorrelationSampleTrue[CorrelationSampleTrue$ParticipantNumber %in% c(117119),] %>% filter(., Feature == "Cluster_HOME_min") %>% 
+          ggplot(.,
+               aes(
+                 y = as.factor(Feature),
+                 x = as.factor(timescale_beforeESM),
+                 fill = Correlation
+               )) +
+  geom_tile() +
+  scale_fill_gradient2(low = "#440154", mid = "white", high = "#21918c", limits =  c(-0.5,0.5)) +
+  geom_text(aes(label = star), color = "black", size = 6) +
+  ylab("") +
+  xlab("") +
+#  ggtitle(paste("Labeling missing data: sensor specific")) +
+  theme_minimal() +
+theme(axis.text.y = element_text(size= 0))  
+
 
 cor1a = CorrelationSampleTrue[CorrelationSampleTrue$ParticipantNumber %in% c(117119),] %>% filter(., Feature == "Cluster_HOME_min") %>% 
           ggplot(.,
@@ -627,7 +641,7 @@ theme(axis.text.y = element_text(size= 0))
 
 plota <- ggarrange(cor1a,cor1a_18,cor1a_12,nrow =3, ncol = 1, common.legend = TRUE, legend = "right")
 
-plota <- annotate_figure(plota, top = text_grob("Exclusion: One Measure Excluded",  size = 14))
+plota <- annotate_figure(plota, top = text_grob("Exclusion: Based on missing GPS data",  size = 14))
 
 ##### Exclude Missing Values non-sensor specific
 
@@ -666,7 +680,7 @@ theme(axis.text.y = element_text(size= 0))
     
 plotb <- ggarrange(blank,cor1b,cor1b_12,nrow =3, ncol = 1, common.legend = TRUE, legend = "right")
 
-plotb <- annotate_figure(plotb, top = text_grob("Exclusion: All Measures Excluded",  size = 14))
+plotb <- annotate_figure(plotb, top = text_grob("Exclusion: Based on all frequently measured variables",  size = 14))
 
 plot_home <- ggarrange(plota,plotb)
 
@@ -674,6 +688,22 @@ plot_home <- annotate_figure(plot_home, top = text_grob("Correlation Minutes bei
 
 ###### Calls
 ##### Exclude Missing Values sensor specific
+
+cor_new2 = CorrelationSampleTrue[CorrelationSampleTrue$ParticipantNumber %in% c(117130),] %>% filter(., Feature == "CALL_TOTAL_min") %>% 
+          ggplot(.,
+               aes(
+                 y = as.factor(Feature),
+                 x = as.factor(timescale_beforeESM),
+                 fill = Correlation
+               )) +
+  geom_tile() +
+  scale_fill_gradient2(low = "#440154", mid = "white", high = "#21918c", limits =  c(-0.5,0.5)) +
+  geom_text(aes(label = star), color = "black", size = 6) +
+  ylab("") +
+  xlab("") +
+#  ggtitle(paste("Labeling missing data: sensor specific")) +
+  theme_minimal() +
+theme(axis.text.y = element_text(size= 0))  
 
 cor1a = CorrelationSampleTrue[CorrelationSampleTrue$ParticipantNumber %in% c(117130),] %>% filter(., Feature == "CALL_TOTAL_min") %>% 
           ggplot(.,
@@ -693,7 +723,7 @@ theme(axis.text.y = element_text(size= 0))
 
 plota <- ggarrange(cor1a,nrow =2, ncol = 1, common.legend = TRUE, legend = "right")
 
-plota <- annotate_figure(plota, top = text_grob("Exclusion: One Measure Excluded",  size = 14))
+plota <- annotate_figure(plota, top = text_grob("Exclusion: No exclusion",  size = 14))
 
 ##### Exclude Missing Values non-sensor specific
 
@@ -730,7 +760,7 @@ theme(axis.text.y = element_text(size= 0))
     
 plotb <- ggarrange(cor1b,cor1b_12,nrow =2, ncol = 1, common.legend = TRUE, legend = "right")
 
-plotb <- annotate_figure(plotb, top = text_grob("Exclusion: All Measures Excluded",  size = 14))
+plotb <- annotate_figure(plotb, top = text_grob("Exclusion: Based on all frequently measured variables",  size = 14))
 
 plot_calling <- ggarrange(plota,plotb)
 
@@ -752,6 +782,27 @@ ggsave(
   plot = plot_calling,
   width = 26,
   height =12*(2/3),
+  units = c("cm"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = NULL)
+
+
+ggsave(
+  "cor_new_gps.jpg",
+  plot = cor_new,
+  width = 13,
+  height =3,
+  units = c("cm"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = NULL)
+
+ggsave(
+  "cor_new_call.jpg",
+  plot = cor_new2,
+  width = 13,
+  height =3,
   units = c("cm"),
   dpi = 300,
   limitsize = TRUE,
@@ -818,67 +869,7 @@ shinyApp(
 ```
 
 
-### OLD EXAMPLE 1: Correlations (old before changing missing values)
 
-
-```{r include=FALSE}
-#Here we calculate the different Correlations
-
-source("Calculation Correlation.R")
-
-# Missing values labeled single sensor specific
-CorrelationSampleTrue <- calculateCorr_pa(Affect_Passive)
-CorrelationSampleTrue_na <- calculateCorr_na(Affect_Passive)
-
-# If one sensor is missing, all are missing
-CorrelationSampleTrue_allNA <- calculateCorr_pa(Affect_Passive_allsensor_NA)
-CorrelationSampleTrue_allNA$diff <- abs(CorrelationSampleTrue$Correlation - CorrelationSampleTrue_allNA$Correlation)
-
-CorrelationSampleTrue_allNA$diff_sign = ""
-CorrelationSampleTrue_allNA$diff_sign[CorrelationSampleTrue$sign != CorrelationSampleTrue_allNA$sign] = "x"
-
-
-CorrelationSampleTrue_na_allNA <- calculateCorr_na(Affect_Passive_allsensor_NA)
-CorrelationSampleTrue_na_allNA$diff <- abs(CorrelationSampleTrue_na$Correlation - CorrelationSampleTrue_na_allNA$Correlation)
-
-CorrelationSampleTrue_na_allNA$diff_sign = ""
-CorrelationSampleTrue_na_allNA$diff_sign[CorrelationSampleTrue_na$sign != CorrelationSampleTrue_na_allNA$sign] = "x"
-
-# No missing values labeled
-CorrelationSampleTrue_noNA <- calculateCorr_pa(Affect_Passive_no_NA)
-CorrelationSampleTrue_noNA$diff <- abs(CorrelationSampleTrue$Correlation - CorrelationSampleTrue_noNA$Correlation)
-
-CorrelationSampleTrue_noNA$diff_sign = ""
-CorrelationSampleTrue_noNA$diff_sign[CorrelationSampleTrue$sign != CorrelationSampleTrue_noNA$sign] = "x"
-
-CorrelationSampleTrue_na_noNA <- calculateCorr_na(Affect_Passive_no_NA)
-CorrelationSampleTrue_na_noNA$diff <- abs(CorrelationSampleTrue_na$Correlation - CorrelationSampleTrue_na_noNA$Correlation)
-
-CorrelationSampleTrue_na_noNA$diff_sign = ""
-CorrelationSampleTrue_na_noNA$diff_sign[CorrelationSampleTrue_na$sign != CorrelationSampleTrue_na_noNA$sign] = "x"
-
-
-
-```
-
-In the next lines of code I did the calculation for the paper
-
-```{r eval=FALSE, include=FALSE}
-CorrelationSampleTrue[CorrelationSampleTrue$ParticipantNumber == 117119 & CorrelationSampleTrue$Feature == "Cluster_HOME_min",]
-
-CorrelationSampleTrue[CorrelationSampleTrue$ParticipantNumber == 117130 & CorrelationSampleTrue$Feature == "CALL_TOTAL_min",]
-
-### Missing Values all na
-CorrelationSampleTrue_allNA[CorrelationSampleTrue_allNA$ParticipantNumber == 117119 & CorrelationSampleTrue_allNA$Feature == "Cluster_HOME_min",]
-
-CorrelationSampleTrue_allNA[CorrelationSampleTrue_allNA$ParticipantNumber == 117130 & CorrelationSampleTrue_allNA$Feature == "CALL_TOTAL_min",]
-
-### Missing Values 
-CorrelationSampleTrue_noNA[CorrelationSampleTrue_noNA$ParticipantNumber == 117119 & CorrelationSampleTrue_noNA$Feature == "Cluster_HOME_min",]
-
-CorrelationSampleTrue_noNA[CorrelationSampleTrue_noNA$ParticipantNumber == 117130 & CorrelationSampleTrue_noNA$Feature == "CALL_TOTAL_min",]
-
-```
 
 Here I did the plots for the paper
 
@@ -990,7 +981,7 @@ ggsave(
 
 ```
 
-PlotsnPoster:
+Plot Poster:
 ```{r eval=FALSE, include=FALSE}
 
 ### Always check if ordered factor is correct ####
@@ -1167,6 +1158,7 @@ Cross-validation (with time, rolling window) (look at nicks code)
 ```{r eval=FALSE, include=FALSE}
 set.seed(12361488)
 library(caret)
+library(forcats)
 
 #Calculated with the script: ParallelComputingML.R
 
@@ -1214,31 +1206,50 @@ OverallResultsPerformance_9h <- perfromanceCalc(OverallResults_9h)
 OverallResultsPerformance_12h <- perfromanceCalc(OverallResults_12h)
 OverallResultsPerformance_24h <- perfromanceCalc(OverallResults_24h)
 
+MEAN_OverallResults_6h <- read.csv("OverallResults_MEAN.csv")
+MEAN_OverallResultsPerformance_6h <- perfromanceCalc(MEAN_OverallResults_6h)
+
 
 plot2 <- ggplot() +
-   geom_line(aes(y = OverallResultsPerformance_1h$rsq, x = OverallResultsPerformance_1h$i/6, color = "1h")) +
-  geom_line(aes(y = OverallResultsPerformance_3h$rsq, x = OverallResultsPerformance_3h$i/6, color = "3h")) +
-  geom_line(aes(y = OverallResultsPerformance_6h$rsq, x = OverallResultsPerformance_6h$i/6, color = "6h")) +
-    geom_line(aes(y = OverallResultsPerformance_9h$rsq, x = OverallResultsPerformance_9h$i/6, color = "9h")) +
-     geom_line(aes(y = OverallResultsPerformance_12h$rsq, x = OverallResultsPerformance_12h$i/6, color = "12h")) +
-     geom_line(aes(y = OverallResultsPerformance_24h$rsq, x = OverallResultsPerformance_24h$i/6, color = "24h")) +
+   geom_line(aes(y = OverallResultsPerformance_24h$rsq, x = OverallResultsPerformance_1h$i, color = "24h")) +
+  geom_line(aes(y = OverallResultsPerformance_12h$rsq, x = OverallResultsPerformance_3h$i, color = "12h")) +
+  geom_line(aes(y = OverallResultsPerformance_9h$rsq, x = OverallResultsPerformance_6h$i, color = "9h")) +
+    geom_line(aes(y = OverallResultsPerformance_6h$rsq, x = OverallResultsPerformance_9h$i, color = "6h")) +
+     geom_line(aes(y = OverallResultsPerformance_3h$rsq, x = OverallResultsPerformance_12h$i, color = "3h")) +
+     geom_line(aes(y = OverallResultsPerformance_1h$rsq, x = OverallResultsPerformance_24h$i, color = "1h")) +
+      geom_line(aes(y = MEAN_OverallResultsPerformance_6h$rsq, x = MEAN_OverallResultsPerformance_6h$i, color = "rolling mean"), size = 1.3) +
   theme_minimal() +
   xlab("Moving Window Size (in days)") +
   ylab("R-squared") +
- scale_color_viridis(discrete=TRUE,limits = c("1h","3h","6h","9h","12h","24h")) +
+ scale_color_viridis(discrete=TRUE,limits = c("24h","12h","9h","6h","3h","1h","rolling mean")) +
   labs(color = "Level of Aggregation") + 
   # Annotation
   annotate(
-    geom = "curve", x = 6/6, y = 0.285, xend = 6/6, yend = 0.1, 
+    geom = "curve", x = 6, y = 0.285, xend = 6, yend = 0.1, 
     curvature = .2,  colour = "#909090", arrow = arrow(length = unit(2, "mm"))
   ) +
-  annotate(geom = "text", colour = "#838383", x = 6.1/6, y = 0.07, label = "Data aggregated one hour before ESM \noverall leads to worse predictions \ncompared to broader time scales.", hjust = "left") +
+  annotate(geom = "text", colour = "#838383", x = 6.1, y = 0.07, label = "Data aggregated one hour before ESM \noverall leads to worse predictions \ncompared to broader time scales.", hjust = "left") +
    annotate(
-    geom = "curve", colour = "#909090", x = 35/6, y = 0.065, xend = 28/6, yend = 0.029, 
+    geom = "curve", colour = "#909090", x = 35, y = 0.065, xend = 28, yend = 0.029, 
     curvature = .2, arrow = arrow(length = unit(2, "mm"))
   ) +
-  annotate(geom = "text", colour = "#838383", x = 22/6, y = 0.01, label = "The prediction accuracy further decreases \nfor choosing larger moving window sizes.", hjust = "left") +
+  annotate(geom = "text", colour = "#838383", x = 22, y = 0.01, label = "The prediction accuracy further decreases \nfor choosing larger moving window sizes.", hjust = "left") +
   theme(legend.text = element_text(size=11))
+
+plot2 <- ggplot() +
+   geom_line(aes(y = OverallResultsPerformance_24h$rsq, x = OverallResultsPerformance_24h$i, color = "24h")) +
+  geom_line(aes(y = OverallResultsPerformance_12h$rsq, x = OverallResultsPerformance_12h$i, color = "12h")) +
+  geom_line(aes(y = OverallResultsPerformance_9h$rsq, x = OverallResultsPerformance_9h$i, color = "9h")) +
+    geom_line(aes(y = OverallResultsPerformance_6h$rsq, x = OverallResultsPerformance_6h$i, color = "6h")) +
+     geom_line(aes(y = OverallResultsPerformance_3h$rsq, x = OverallResultsPerformance_3h$i, color = "3h")) +
+     geom_line(aes(y = OverallResultsPerformance_1h$rsq, x = OverallResultsPerformance_1h$i, color = "1h")) +
+      geom_line(aes(y = MEAN_OverallResultsPerformance_6h$rsq, x = MEAN_OverallResultsPerformance_6h$i, color = "rolling mean"), size = 1.3) +
+  theme_minimal() +
+  xlab("Moving Window Size") +
+  ylab("R-squared") +
+ scale_color_viridis(discrete=TRUE,limits = c("24h","12h","9h","6h","3h","1h","rolling mean")) +
+  labs(color = "Level of Aggregation") 
+
 
  ggsave(
  "RSquared.jpg",
@@ -1250,6 +1261,31 @@ plot2 <- ggplot() +
  limitsize = TRUE,
  bg = NULL)
 
+ plot2 <- ggplot() +
+   geom_line(aes(y = OverallResultsPerformance_24h$cor, x = OverallResultsPerformance_1h$i, color = "24h")) +
+  geom_line(aes(y = OverallResultsPerformance_12h$cor, x = OverallResultsPerformance_3h$i, color = "12h")) +
+  geom_line(aes(y = OverallResultsPerformance_9h$cor, x = OverallResultsPerformance_6h$i, color = "9h")) +
+    geom_line(aes(y = OverallResultsPerformance_6h$cor, x = OverallResultsPerformance_9h$i, color = "6h")) +
+     geom_line(aes(y = OverallResultsPerformance_3h$cor, x = OverallResultsPerformance_12h$i, color = "3h")) +
+     geom_line(aes(y = OverallResultsPerformance_1h$cor, x = OverallResultsPerformance_24h$i, color = "1h")) +
+      geom_line(aes(y = MEAN_OverallResultsPerformance_6h$cor, x = MEAN_OverallResultsPerformance_6h$i, color = "rolling mean"), size = 1.3) +
+  theme_minimal() +
+  xlab("Moving Window Size (in days)") +
+  ylab("Correlation") +
+ scale_color_viridis(discrete=TRUE,limits = c("1h","3h","6h","9h","12h","24h","rolling mean")) +
+  labs(color = "Level of Aggregation") 
+ 
+ ggsave(
+ "Correlation_mean.jpg",
+ plot = plot2,
+ width = 23,
+ height = 10,
+ units = c("cm"),
+ dpi = 300,
+ limitsize = TRUE,
+ bg = NULL)
+
+ 
 
 plot3 <- ggplot() +
    geom_line(aes(y = OverallResultsPerformance_1h$cor, x = OverallResultsPerformance_1h$i, color = "1h")) +
@@ -1328,49 +1364,159 @@ paste("(R-Squared = ",round(OverallResultsPerformance_24h$rsq[37],2),")", sep = 
 
 ```
 
-Supplementary Material:
-- Maybe actual predictions for different time windows
+### NOT INCLUDE IN PAPER: Things after supervision meeting
 ```{r eval=FALSE, include=FALSE}
-plot <- OverallResults_24h %>%  gather(., Prediction, Value, pred:true) %>% 
-ggplot(., (aes(y = Value, x = index,color = Prediction ))) +
-  geom_line() +
-  xlab("") +
-  ylab("") +
-  facet_wrap( ~ w) 
+library("caret")
+library("doParallel")
+
+Participant1 = Affect_Passive[Affect_Passive["ParticipantNumber"] == 117134 & Affect_Passive["timescale_beforeESM"] == "24h",  ]
+
+
+formula2 <- as.formula(paste("pa_mean ~  SOCIAL_min +
+               COMMUNICATION_min +
+               com.whatsapp_min +
+               APP_USAGE_min +
+               APPS_OPENED_number +
+               Cluster_HOME_min +
+               Cluster_1_min +
+               Cluster_2_min +
+               Cluster_3_min +
+               Cluster_4_min +
+               Cluster_5_min +
+               TIME_STATIONARY_min +
+               TOTAL_MACHASHES_number +
+               UNIQUE_MACHASHES_number +
+               BLUETOOTH_TOTAL_MACHASHES_number +
+               BLUETOOTH_UNIQUE_MACHASHES_number +
+               LIGHT_LUX_mean +                                                      
+               SCREEN_onLocked_number  +                                             
+               SCREEN_onUnlocked_number"))
+
+cl <- makePSOCKcluster(detectCores()-1)
+
+registerDoParallel(cl)
+
+
+timeSlices <- createTimeSlices(1:nrow(Participant1), 
+                                 initialWindow = 50, horizon = 1, fixedWindow = TRUE)
+  
+trainSlices <- timeSlices[[1]]
+testSlices <- timeSlices[[2]]
+  
+
+  
+pred <- rep(NA,length(trainSlices))
+true <- rep(NA,length(trainSlices))
+w <- rep(NA,length(trainSlices))
+index <- rep(NA,length(testSlices))
+  
+t_grid <- expand.grid(size=c(5,10, 15, 20), decay = c(0,0.5,1))
+
+fitControl <- trainControl(method = "LOOCV",
+                             number = 1)
+    
+  for(i in 1:length(trainSlices)){
+    
+ model<- train(formula2, data=Participant1[trainSlices[[i]],], method='nnet', tuneGrid=t_grid,
+                      maxit=10000, linout=TRUE, trControl = fitControl)
+    
+
+    pred[i] <- predict(model,Participant1[testSlices[[i]],]) #final model automatically used with predict
+    true[i] <- Participant1$pa_mean[testSlices[[i]]]
+    index[i] <- as.numeric(testSlices[[i]])
+  
+  }
+
+
+OverallResults <- as.data.frame(cbind(pred,true,w,index))
+
+stopCluster(cl)
+
+
+cor.test(OverallResults$pred,OverallResults$true)$estimate
+
+rss <- sum((OverallResults$pred - OverallResults$true) ^ 2)  ## residual sum of squares
+tss <- sum((OverallResults$true - mean(OverallResults$true)) ^ 2)  ## total sum of squares
+rsq <- 1 - rss/tss
+rsq
+
+plot2 <- ggplot() +
+   geom_line(aes(y = OverallResults$pred, x = OverallResults$i, color = "pred")) +
+  geom_line(aes(y = OverallResults$true, x = OverallResults$i, color = "true"))
+
+
+
+
+```
+
+
+
+
+```{r eval=FALSE, include=FALSE}
+set.seed(12361488)
+library(ppcor)
+
+MEAN_OverallResults <- read.csv("OverallResults_MEAN.csv")
+
+#### Calculate Performance Measures ####
+perfromanceCalc_parcor <- function(OverallResults){
+counter = 0
+OverallResults <- OverallResults[OverallResults$index >= 43,]
+MEAN_OverallResults <- MEAN_OverallResults[MEAN_OverallResults$index >= 43,]
+
+
+for(i in unique(OverallResults$w)){
+counter = counter + 1
+results <- OverallResults[OverallResults$w == i,]
+results_mean <- MEAN_OverallResults[MEAN_OverallResults$w == 6,]
+
+cor = pcor(data.frame(results$pred,results$true,results_mean$pred), method = "pearson")$estimate[1,2]
+
+
+if(counter == 1){
+resultsPerformance <- cbind(i, cor)
+OverallResultsPerformance <- resultsPerformance
+}else{
+resultsPerformance <- cbind(i,cor)
+OverallResultsPerformance <- rbind(OverallResultsPerformance, resultsPerformance)
+}
+OverallResultsPerformance <- as.data.frame(OverallResultsPerformance)
+}
+return(OverallResultsPerformance)
+}
+
+OverallResultsPerformance_1h <- perfromanceCalc_parcor(OverallResults_1h)
+OverallResultsPerformance_3h <- perfromanceCalc_parcor(OverallResults_3h)
+OverallResultsPerformance_6h <- perfromanceCalc_parcor(OverallResults_6h)
+OverallResultsPerformance_9h <- perfromanceCalc_parcor(OverallResults_9h)
+OverallResultsPerformance_12h <- perfromanceCalc_parcor(OverallResults_12h)
+OverallResultsPerformance_24h <- perfromanceCalc_parcor(OverallResults_24h)
+
+plot2_mean6 <- ggplot() +
+   geom_line(aes(y = OverallResultsPerformance_1h$cor, x = OverallResultsPerformance_1h$i, color = "1h")) +
+  geom_line(aes(y = OverallResultsPerformance_3h$cor, x = OverallResultsPerformance_3h$i, color = "3h")) +
+  geom_line(aes(y = OverallResultsPerformance_6h$cor, x = OverallResultsPerformance_6h$i, color = "6h")) +
+    geom_line(aes(y = OverallResultsPerformance_9h$cor, x = OverallResultsPerformance_9h$i, color = "9h")) +
+     geom_line(aes(y = OverallResultsPerformance_12h$cor, x = OverallResultsPerformance_12h$i, color = "12h")) +
+     geom_line(aes(y = OverallResultsPerformance_24h$cor, x = OverallResultsPerformance_24h$i, color = "24h")) +
+  theme_minimal() +
+  xlab("Moving Window Size (in days)") +
+  ylab("Partial Correlation (controlling for mean prediction)") +
+ scale_color_viridis(discrete=TRUE,limits = c("1h","3h","6h","9h","12h","24h")) +
+  labs(color = "Level of Aggregation") 
+
 
 ggsave(
-  "predictions.jpg",
-  plot = plot,
-  width = 30,
-  height = 12,
-  units = c("cm"),
-  dpi = 300,
-  limitsize = TRUE,
-  bg = NULL)
+ "PartialCorrelation_rollingmean.jpg",
+ plot = plot2_mean6,
+ width = 23,
+ height = 10,
+ units = c("cm"),
+ dpi = 300,
+ limitsize = TRUE,
+ bg = NULL)
 
-
-plot3 <- OverallResults_24h[OverallResults_24h$w %in% c(6,10,20,30,42) & OverallResults_24h$index >= 43,] %>% 
-ggplot(.) +
-  geom_line(aes(y = true, x = index )) +
-  geom_line(aes(y = pred, x = index, color = as.factor(w))) +
-  xlab("") +
-  ylab("") +
-  theme_minimal()
-
-
-ggsave(
-  "Predictions_windows.jpg",
-  plot = plot3,
-  width = 30,
-  height = 12,
-  units = c("cm"),
-  dpi = 300,
-  limitsize = TRUE,
-  bg = NULL)
-
-#00798c,d1495b,edae49,66a182,2e4057,8d96a3
-
-ggplot() +
+plot3 <- ggplot() +
    geom_line(aes(y = OverallResultsPerformance_1h$cor, x = OverallResultsPerformance_1h$i, color = "1h")) +
   geom_line(aes(y = OverallResultsPerformance_3h$cor, x = OverallResultsPerformance_3h$i, color = "3h")) +
   geom_line(aes(y = OverallResultsPerformance_6h$cor, x = OverallResultsPerformance_6h$i, color = "6h")) +
@@ -1381,27 +1527,11 @@ ggplot() +
   xlab("Moving Window Size") +
   ylab("Correlation") +
  scale_color_viridis(discrete=TRUE,limits = c("1h","3h","6h","9h","12h","24h")) +
-  labs(color = "Level of aggregation")
-
-
-ggplot() +
-   geom_line(aes(y = OverallResultsPerformance_1h$RMSE, x = OverallResultsPerformance_1h$i, color = "1h")) +
-  geom_line(aes(y = OverallResultsPerformance_3h$RMSE, x = OverallResultsPerformance_3h$i, color = "3h")) +
-  geom_line(aes(y = OverallResultsPerformance_6h$RMSE, x = OverallResultsPerformance_6h$i, color = "6h")) +
-    geom_line(aes(y = OverallResultsPerformance_9h$RMSE, x = OverallResultsPerformance_9h$i, color = "9h")) +
-     geom_line(aes(y = OverallResultsPerformance_12h$RMSE, x = OverallResultsPerformance_12h$i, color = "12h")) +
-     geom_line(aes(y = OverallResultsPerformance_24h$RMSE, x = OverallResultsPerformance_24h$i, color = "24h")) +
-  theme_minimal() +
-  xlab("Moving Window Size") +
-  ylab("RMSE") +
- scale_color_viridis(discrete=TRUE,limits = c("1h","3h","6h","9h","12h","24h")) +
-  labs(color = "Level of aggregation")
-
-
+  labs(color = "Level of Aggregation")
 ```
 
 
-### NOT INCLUDE IN PAPER: Things after supervision meeting
+
 ```{r eval=FALSE, include=FALSE}
 library(forecast)
 library(fpp2)
@@ -1471,4 +1601,150 @@ ggplot(Participant1) +
 ```
 
 
+### Plot for SAA
+```{r eval=FALSE, include=FALSE}
+missing_plotdata <- missing_plotdata[missing_plotdata$cond == "Sensor Specific", ]
+plot_missing_gps <- ggplot(missing_plotdata[missing_plotdata$index == "TIME_STATIONARY_min",], aes(fill=cond, y=P117119_p, x=missing)) + 
+    geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  scale_fill_manual(values = c("#21918c") ,breaks=c('Sensor Specific')) +
+  theme( legend.title=element_blank()) +
+  ggtitle("Exclusion GPS Data") +
+  ylab("Percentage of excluded Data") +
+  xlab("") +
+  coord_cartesian(ylim=c(0,0.5)) +
+  theme(legend.text = element_text(size=10)) 
 
+plot_missing_gps_poster <- ggplot(missing_plotdata[missing_plotdata$index == "TIME_STATIONARY_min",], aes(fill=cond, y=P117119_p, x=missing)) + 
+    geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  scale_fill_manual(values = c("#21918c","#440154"),breaks=c('Sensor Specific', 'Non Sensor Specific')) +
+  theme( legend.title=element_blank()) +
+  ggtitle("% of excluded GPS Data using different Strategies") +
+  ylab("Percentage of excluded Data") +
+  xlab("") +
+#  coord_cartesian(ylim=c(0,0.5)) +
+  theme(legend.text = element_text(size=14),legend.position="bottom", axis.text = element_text(size = 14),axis.title=element_text(size=16), plot.title = element_text(size=18)) 
+  
+ggsave(
+  "plot_missingcount_SAA.jpg",
+  plot = plot_missing_gps,
+  width = 16,
+  height = 14,
+  units = c("cm"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = NULL)
+
+plot_missing_call <- ggplot(missing_plotdata[missing_plotdata$index == "CALL_TOTAL_min",], aes(fill=cond, y=P117130_p, x=missing)) + 
+    geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  scale_fill_manual(values = c("#21918c","#440154"),breaks=c('Sensor Specific', 'Non Sensor Specific')) +
+  theme( legend.title=element_blank()) +
+  ggtitle("Exclusion Call Data (Participant B)") +
+  ylab("Percentage of excluded Data") +
+  xlab("") +
+  coord_cartesian(ylim=c(0,0.5)) +
+  theme(legend.text = element_text(size=10)) 
+
+plot_missingcount <- ggarrange(plot_missing_gps,plot_missing_call, common.legend =  TRUE, legend = "right")
+
+plot_missingcount
+
+ggsave(
+  "plot_missingcount.jpg",
+  plot = plot_missingcount,
+  width = 25,
+  height = 13,
+  units = c("cm"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = NULL)
+
+```
+
+
+### Plot Missing data (only to explore not for paper)
+```{r eval=FALSE, include=FALSE}
+Affect_Passive_sube <- Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "24h",]
+Affect_Passive_sube <- Affect_Passive_sube[1:50,]
+
+#117130
+Affect_Passive_allsensor_NA
+
+plota <- ggplot() +
+  geom_line(aes(y = Affect_Passive_allsensor_NA$Cluster_HOME_min[Affect_Passive_allsensor_NA$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA$timescale_beforeESM == "24h"], x = as.POSIXct(Affect_Passive_allsensor_NA$Date[Affect_Passive_allsensor_NA$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA$timescale_beforeESM == "24h"]),color = "24 hour")) +
+   geom_line(aes(y = Affect_Passive_allsensor_NA_18m$Cluster_HOME_min[Affect_Passive_allsensor_NA_18m$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA_18m$timescale_beforeESM == "24h"], x = as.POSIXct(Affect_Passive_allsensor_NA_18m$Date[Affect_Passive_allsensor_NA_18m$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA_18m$timescale_beforeESM == "24h"]),color = "18 hour")) +
+  geom_line(aes(y = Affect_Passive_allsensor_NA_12m$Cluster_HOME_min[Affect_Passive_allsensor_NA_12m$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA_12m$timescale_beforeESM == "24h"], x = as.POSIXct(Affect_Passive_allsensor_NA_12m$Date[Affect_Passive_allsensor_NA_12m$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA_12m$timescale_beforeESM == "24h"]),color = "12 hour")) +
+  theme_minimal() +
+  xlab("") + 
+  ylab("")
+
+
+```
+
+
+
+#Plot Missing Data (for Poster)
+```{r eval=FALSE, include=FALSE}
+Affect_Passive_sube <- Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119) & Affect_Passive$timescale_beforeESM == "24h",]
+Affect_Passive_sube <- Affect_Passive_sube[1:52,]
+
+plota <- ggplot(Affect_Passive_sube) +
+  geom_line(aes(y = APP_USAGE_min, x = as.POSIXct(Date),color = "App Usage")) +
+  geom_line(aes(y = TOTAL_MACHASHES_number/20, x = as.POSIXct(Date),color = "Total Wifi Connections")) +
+  theme_minimal() +
+  xlab("") + 
+  ylab("") +
+  labs(color='') +
+  scale_y_continuous(
+              name = "App Usage",
+              sec.axis = sec_axis( ~ . * 20, name = 'Wifi Connections')
+            ) +
+  ggtitle("a) Only the missing measure is excluded") +
+  scale_color_manual(name = "",values = c( "App Usage" = "#21918c", "Total Wifi Connections" = "#440154")) +
+  annotate(
+    geom = "curve", x = as.POSIXct(Affect_Passive_sube$Date[40]), y = 11, xend =as.POSIXct(Affect_Passive_sube$Date[35]), yend = 9, 
+    curvature = .3, arrow = arrow(length = unit(2, "mm"))
+  ) +
+  annotate(geom = "text", x = as.POSIXct(Affect_Passive_sube$Date[40]), y = 11, label = "App Usage included,\n Wifi excluded", hjust = "left") +
+  theme(legend.text = element_text(size=12))
+
+
+Affect_Passive_sube <- Affect_Passive_allsensor_NA[Affect_Passive_allsensor_NA$ParticipantNumber %in% c(117119) & Affect_Passive_allsensor_NA$timescale_beforeESM == "24h",]
+Affect_Passive_sube <- Affect_Passive_sube[1:50,]
+
+plotb <- ggplot(Affect_Passive_sube) +
+  geom_line(aes(y = APP_USAGE_min, x = as.POSIXct(Date),color = "App Usage")) +
+  geom_line(aes(y = TOTAL_MACHASHES_number/20, x = as.POSIXct(Date),color = "Total Wifi Connections")) +
+  theme_minimal() +
+  xlab("") + 
+  ylab("") +
+  labs(color='') +
+  scale_y_continuous(
+              name = "App Usage",
+              sec.axis = sec_axis( ~ . * 20, name = 'Wifi Connections')
+            ) +
+  ggtitle("b) All measures are excluded, if one measure is missing") +
+  scale_color_manual(name = "",values = c( "App Usage" = "#21918c", "Total Wifi Connections" = "#440154")) +
+  annotate(
+    geom = "curve", x = as.POSIXct(Affect_Passive_sube$Date[40]), y = 11, xend =as.POSIXct(Affect_Passive_sube$Date[35]), yend = 9, 
+    curvature = .3, arrow = arrow(length = unit(2, "mm"))
+  ) +
+  annotate(geom = "text", x = as.POSIXct(Affect_Passive_sube$Date[40]), y = 11, label = "Both measures \n excluded", hjust = "left") +
+  theme(legend.text = element_text(size=12))
+
+
+plot_exclusion <- ggarrange(plota, plotb, ncol = 1, common.legend = TRUE, legend = "bottom") 
+
+ggsave(
+  "plotexclude.jpg",
+  plot = plot_exclusion,
+  width = 17,
+  height = 13,
+  units = c("cm"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = NULL)
+
+```

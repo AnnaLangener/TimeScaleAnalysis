@@ -1,0 +1,663 @@
+
+```{r setup, include=FALSE}
+source("CorrelationPlot.R")
+library(sjPlot)
+library(jtools)
+library(nlme)
+library(dplyr)
+library(ggplot2)
+library(lme4)
+library(dotwhisker)
+library(ggpubr)
+library(stargazer)
+library(tidyr)
+
+
+PerStudy <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerStudy.csv")
+PerWeek <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerWeek.csv")
+PerDay <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerDay.csv")
+PerHour <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/PerHour.csv")
+
+to_analyze <- read.csv("/Users/annalangener/Google Drive/PhD Wellbeing/to_analyse.csv")
+to_analyze <- to_analyze[,colnames(to_analyze) %in% c("BEHAPP_ID","SFS","LONELINESS")]
+
+PerStudy <- left_join(PerStudy, to_analyze, by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+PerWeek <- left_join(PerWeek, to_analyze, by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+PerDay <- left_join(PerDay, to_analyze, by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+PerHour <- left_join(PerHour, to_analyze, by = c("ParticipantNumber" = "BEHAPP_ID"),suffix = c("",""))
+
+set.seed(12361488)
+train_ind <- sample(PerStudy$ParticipantNumber, size = 0.7*nrow(PerStudy))
+
+PerHourtrain <- PerHour[PerHour$ParticipantNumber %in% train_ind, ]
+PerHourtest <- PerHour[!PerHour$ParticipantNumber %in% train_ind, ]
+
+PerDaytrain <- PerDay[PerDay$ParticipantNumber %in% train_ind, ]
+PerDaytest <- PerDay[!PerDay$ParticipantNumber %in% train_ind, ]
+
+PerWeektrain <- PerWeek[PerWeek$ParticipantNumber %in% train_ind, ]
+PerWeektest <- PerWeek[!PerWeek$ParticipantNumber %in% train_ind, ]
+
+PerStudytrain <- PerStudy[PerStudy$ParticipantNumber %in% train_ind, ]
+PerStudytest <- PerStudy[!PerStudy$ParticipantNumber %in% train_ind, ]
+
+
+# NA not replaced
+PerHourNA <- PerHour
+PerHourNA[is.na(PerHourNA)] <- 0
+PerDayNA <- PerDay
+PerDayNA[is.na(PerDayNA)] <- 0
+PerWeekNA <- PerWeek
+PerWeekNA[is.na(PerWeekNA)] <- 0
+PerStudyNA <- PerStudy
+PerStudyNA[is.na(PerStudyNA)] <- 0
+
+
+# library(mice)
+# 
+# col = c("COMMUNICATION_APPS_pct","SOCIAL_APPS_pct","APP_USAGE_pct","SOCIAL_APPS_min","COMMUNICATION_APPS_min","APP_USAGE_min","APPS_OPENED_number","CLUSTER_HOME_pct"," TIME_STATIONARY_pct","CLUSTER_HOME_min","NUMBER_STAYPOINTS_number","UNIQUE_STAYPOINTS_number","TIME_STATIONARY_min","TOTAL_MACHASHES_norm","UNIQUE_MACHASHES_norm","CALL_incoming_pct","CALL_outgoing_pct","CALL_TOTAL_pct","MISSED_CALLS_norm", "ParticipantNumber", "Date")
+# 
+# 
+# 
+# PerDayC <- mice(PerDay[,colnames(PerDay) %in% col])
+# PerDayC <- complete(PerDayC)
+# data.all.mt = model.matrix(~ COMMUNICATION_APPS_pct+SOCIAL_APPS_pct+APP_USAGE_pct+COMMUNICATION_APPS_min+APP_USAGE_min+APPS_OPENED_number+CLUSTER_HOME_pct+CLUSTER_HOME_min+NUMBER_STAYPOINTS_number+UNIQUE_STAYPOINTS_number+TIME_STATIONARY_min+TOTAL_MACHASHES_norm+UNIQUE_MACHASHES_norm+CALL_incoming_pct+CALL_outgoing_pct+CALL_TOTAL_pct+MISSED_CALLS_norm, PerDayC)[,-1]
+# data.pca = princomp(data.all.mt)
+# 
+# n.pcs = 5
+# X.data.pca = data.pca$scores[,1:n.pcs]
+# df.tmp = data.frame(X.data.pca, ID = PerDayC$ParticipantNumber, day = PerDayC$Date)
+# colnames(df.tmp)[ncol(df.tmp)] = outcome
+# return( split(df.tmp, df.tmp$ID) )
+
+```
+
+
+### Correlations
+0.1 Small
+0.3 Moderate
+0.5 Large
+
+Cohen's (1988)
+
+## Correlation SFS
+```{r echo=FALSE}
+inputPanel(
+  selectInput("CorrelationPair", label = "Correlation with: ",
+              choices = c("LONELINESS","SFS"), selected = SFS),
+)
+Features <- c('SOCIAL_APPS_pct','APP_USAGE_pct','APPS_OPENED_norm', 'SOCIAL_APPS_min','COMMUNICATION_APPS_pct','COMMUNICATION_APPS_min', 'APP_USAGE_min', 'APPS_OPENED_number','CLUSTER_HOME_pct','NUMBER_STAYPOINTS_norm', 'UNIQUE_STAYPOINTS_norm', 'TIME_STATIONARY_pct','CLUSTER_HOME_min', 'NUMBER_STAYPOINTS_number', 'UNIQUE_STAYPOINTS_number', 'TIME_STATIONARY_min', 'TOTAL_MACHASHES_norm', 'UNIQUE_MACHASHES_norm', 'CALL_incoming_pct', 'CALL_outgoing_pct', 'CALL_TOTAL_pct', 'MISSED_CALLS_norm')
+
+#Features <- c("TotalMinutes", "COMMUNICATION", "SOCIAL", "NumberOpened", "UniqueNumber", "TimeStationary")
+
+renderPlot({
+CorrelationPair = input$CorrelationPair
+
+Correlation <- data.frame(Correlation = cor.test(PerHour[,Features[1]],PerHour[,CorrelationPair])$estimate, p.value = round(cor.test(PerHour[,Features[1]],PerHour[,CorrelationPair])$p.value,2), Feature = Features[1], Time = "Per Hour")
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(PerDay[,Features[1]],PerDay[,CorrelationPair])$estimate, p.value = round(cor.test(PerDay[,Features[1]],PerDay[,CorrelationPair])$p.value,2), Feature = Features[1], Time = "Per Day"))
+
+Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerWeek[,Features[1]],PerWeek[,CorrelationPair])$estimate, p.value = round(cor.test(PerWeek[,Features[1]],PerWeek[,CorrelationPair])$p.value,2), Feature = Features[1], Time = "Per Week"))
+
+Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerStudy[,Features[1]],PerStudy[,CorrelationPair])$estimate, p.value = round(cor.test(PerStudy[,Features[1]],PerStudy[,CorrelationPair])$p.value,2), Feature = Features[1], Time = "Per Study"))
+
+
+for(i in 2:length(Features)){
+  Correlation <- rbind(Correlation,data.frame(Correlation = cor.test(PerHour[,Features[i]],PerHour[,CorrelationPair])$estimate, p.value = round(cor.test(PerHour[,Features[i]],PerHour[,CorrelationPair])$p.value,2), Feature = Features[i], Time = "Per Hour"))
+  
+  Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerDay[,Features[i]],PerDay[,CorrelationPair])$estimate, p.value = round(cor.test(PerDay[,Features[i]],PerDay[,CorrelationPair])$p.value,2), Feature = Features[i], Time = "Per Day"))
+
+Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerWeek[,Features[i]],PerWeek[,CorrelationPair])$estimate, p.value = round(cor.test(PerWeek[,Features[i]],PerWeek[,CorrelationPair])$p.value,2), Feature = Features[i], Time = "Per Week"))
+
+Correlation <-  rbind(Correlation, data.frame(Correlation = cor.test(PerStudy[,Features[i]],PerStudy[,CorrelationPair])$estimate, p.value = round(cor.test(PerStudy[,Features[i]],PerStudy[,CorrelationPair])$p.value,2), Feature = Features[i], Time = "Per Study"))
+
+}
+
+Correlation$Star <- ""
+Correlation$stars <- cut(Correlation$p.value, breaks=c(-Inf, 0.001, 0.01, 0.05, Inf), label=c("***", "**", "*", ""))
+Correlation$Time <- factor(Correlation$Time, levels = c("Per Hour", "Per Day", "Per Week", "Per Study"))
+
+
+library(plotly)
+library(hrbrthemes)
+library(viridis)
+ggplotly(
+  ggplot(Correlation, aes(y= Feature,x = Time, fill= Correlation)) + 
+  geom_tile() +
+  scale_fill_gradient2(low="#D7191C", mid="white", high="#2C7BB6") + 
+  geom_text(aes(label=stars), color="black", size=4) +
+  ylab("") +
+  xlab("") +
+  ggtitle((paste("Correlation Passive Measures and",CorrelationPair))) +
+  theme_minimal()
+)
+})
+```
+
+
+
+
+### Association Between Features
+```{r echo=FALSE}
+#'COMMUNICATION_APPS_pct','SOCIAL_APPS_pct','APP_USAGE_pct', 'SOCIAL_APPS_min','COMMUNICATION_APPS_min', 'APP_USAGE_min', 'APPS_OPENED_number','CLUSTER_HOME_pct', 'TIME_STATIONARY_pct','CLUSTER_HOME_min', 'NUMBER_STAYPOINTS_number', 'UNIQUE_STAYPOINTS_number', 'TIME_STATIONARY_min', 'TOTAL_MACHASHES_norm', 'UNIQUE_MACHASHES_norm', 'CALL_incoming_pct', 'CALL_outgoing_pct', 'CALL_TOTAL_pct', 'MISSED_CALLS_norm'
+
+CorrelationPlot(Feature = c("CLUSTER_HOME_pct","COMMUNICATION_APPS_pct"),PerHour,PerDay,PerWeek,PerStudy,PerHourNA,PerDayNA,PerWeekNA,PerStudyNA)
+```
+Maybe add to the plots the missing data number. Extreme effects on weeks: 1082,1242,1439. This are all participants in which a whole week of data is missing
+
+
+
+### Social Functioning Score
+
+```{r echo=FALSE, warning=FALSE}
+# Predict whether Alzheimer or Schizophrenia
+## Random slopes
+library("caret")
+set.seed(1488116)
+
+###### Prediction Loneliness or SFS ######
+Outcome = "SFS"
+formula <- as.formula(paste(Outcome,"~ COMMUNICATION_APPS_pct +APP_USAGE_pct + +APPS_OPENED_norm+CLUSTER_HOME_pct+UNIQUE_STAYPOINTS_norm+UNIQUE_MACHASHES_norm"))
+ctrl <- trainControl(method = "cv", number = 4)
+
+res1 <- train(formula, data = PerHour, method = "lm", trControl = ctrl, na.action	= na.omit)
+res2 <- train(formula, data = PerDay, method = "lm", trControl = ctrl, na.action	= na.omit)
+res3 <- train(formula, data = PerWeek, method = "lm", trControl = ctrl, na.action	= na.omit)
+res4 <- train(formula, data = PerStudy, method = "lm", trControl = ctrl, na.action	= na.omit)
+
+###### Classification Participant Label #######
+formula2 <- as.formula(paste("as.factor(ParticipantLabel) ~ COMMUNICATION_APPS_pct +APP_USAGE_pct + +APPS_OPENED_norm+CLUSTER_HOME_pct+UNIQUE_STAYPOINTS_norm+UNIQUE_MACHASHES_norm"))
+
+#library(doParallel)
+#cl <- makePSOCKcluster(4)
+#registerDoParallel(cl)
+#stopCluster(cl)
+
+res5 <- PerHour %>% filter(ParticipantLabel != "Label: 3 | Control" ) %>% train(formula2, data = ., method = "lda", trControl = ctrl, na.action	= na.omit)
+res6 <- PerDay %>% filter(ParticipantLabel != "Label: 3 | Control") %>% train(formula2, data = ., method = "lda", trControl = ctrl, na.action	= na.omit)
+res7 <- PerWeek %>% filter(ParticipantLabel != "Label: 3 | Control") %>% train(formula2, data = ., method = "lda", trControl = ctrl, na.action	= na.omit)
+res8 <- PerStudy %>% filter(ParticipantLabel != "Label: 3 | Control") %>% train(formula2, data = ., method = "lda", trControl = ctrl, na.action	= na.omit)
+
+confusionMatrix(res6)
+
+
+unregister_dopar <- function() {
+  env <- foreach:::.foreachGlobals
+  rm(list=ls(name=env), pos=env)
+}
+
+######### Without caret package ########
+
+set.seed(1488116)
+PerStudy$index <- sample(1:5,nrow(PerStudy), replace = TRUE)
+Holdout1 <- PerStudy[PerStudy$index == 1,]$ParticipantNumber
+Holdout2 <- PerStudy[PerStudy$index == 2,]$ParticipantNumber
+Holdout3 <- PerStudy[PerStudy$index == 3,]$ParticipantNumber
+Holdout4 <- PerStudy[PerStudy$index == 4,]$ParticipantNumber
+Holdout5 <- PerStudy[PerStudy$index == 5,]$ParticipantNumber
+
+Holdout <- list(Holdout1,Holdout2,Holdout3,Holdout4,Holdout5)
+
+
+counter = 1
+for(i in 1:5){
+res_lin1 <- lm(formula,PerHour[!PerHour$ParticipantNumber %in% unlist(Holdout[i]),])
+predict <- predict(res_lin1,PerHour[PerHour$ParticipantNumber %in% unlist(Holdout[i]),])
+predict <- data.frame(predict = predict,Outcome = PerHour[PerHour$ParticipantNumber %in%  unlist(Holdout[i]),]$SFS, ParticipantNumber = PerHour[PerHour$ParticipantNumber %in%  unlist(Holdout[i]),]$ParticipantNumber)
+
+predictHour_notmean <- predict
+predict  %>%
+    group_by(ParticipantNumber) %>% summarize(Outcome = mean(Outcome, na.rm = TRUE), predict = mean(predict, na.rm = TRUE)) %>% data.frame() -> predictHour
+
+res_lin2 <- lm(formula,PerDay[!PerDay$ParticipantNumber %in% unlist(Holdout[i]),])
+predict <- predict(res_lin2,PerDay[PerDay$ParticipantNumber %in% unlist(Holdout[i]),])
+predict <- data.frame(predict = predict,Outcome = PerDay[PerDay$ParticipantNumber %in%  unlist(Holdout[i]),]$SFS, ParticipantNumber = PerDay[PerDay$ParticipantNumber %in%  unlist(Holdout[i]),]$ParticipantNumber)
+
+predictDay_notmean <- predict
+predict  %>%
+    group_by(ParticipantNumber) %>% summarize(Outcome = mean(Outcome, na.rm = TRUE), predict = mean(predict, na.rm = TRUE)) %>% data.frame() -> predictDay
+
+res_lin3 <- lm(formula,PerWeek[!PerWeek$ParticipantNumber %in% unlist(Holdout[i]),])
+predict <- predict(res_lin3,PerWeek[PerWeek$ParticipantNumber %in% unlist(Holdout[i]),])
+predict <- data.frame(predict = predict,Outcome = PerWeek[PerWeek$ParticipantNumber %in%  unlist(Holdout[i]),]$SFS, ParticipantNumber = PerWeek[PerWeek$ParticipantNumber %in%  unlist(Holdout[i]),]$ParticipantNumber)
+
+predictWeek_notmean <- predict
+predict  %>%
+    group_by(ParticipantNumber) %>% summarize(Outcome = mean(Outcome, na.rm = TRUE), predict = mean(predict, na.rm = TRUE)) %>% data.frame() -> predictWeek
+
+res_lin4 <- lm(formula,PerStudy[!PerStudy$ParticipantNumber %in% unlist(Holdout[i]),])
+predict <- predict(res_lin4,PerStudy[PerStudy$ParticipantNumber %in% unlist(Holdout[i]),])
+predict <- data.frame(predict = predict,Outcome = PerStudy[PerStudy$ParticipantNumber %in%  unlist(Holdout[i]),]$SFS, ParticipantNumber = PerStudy[PerStudy$ParticipantNumber %in%  unlist(Holdout[i]),]$ParticipantNumber)
+
+predictStudy_notmean <- predict
+predict  %>%
+    group_by(ParticipantNumber) %>% summarize(Outcome = mean(Outcome, na.rm = TRUE), predict = mean(predict, na.rm = TRUE)) %>% data.frame() -> predictStudy
+
+
+if(counter == 1){
+counter = 2
+Correlation <- data.frame(Correlation = cor.test(predictHour$Outcome, predictHour$predict)$estimate, p.value = round(cor.test(predictHour$Outcome, predictHour$predict)$p.value,2), MSE = mean((predictHour$predict - predictHour$Outcome)^2, na.rm = TRUE),RMSE = sqrt(mean((predictHour$predict - predictHour$Outcome)^2, na.rm = TRUE)), Time = "Per Hour", Prediciton = "mean", Split = i)
+}
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(predictHour$Outcome, predictHour$predict)$estimate, p.value = round(cor.test(predictHour$Outcome, predictHour$predict)$p.value,2), MSE = mean((predictHour$predict - predictHour$Outcome)^2, na.rm = TRUE),RMSE = sqrt(mean((predictHour$predict - predictHour$Outcome)^2, na.rm = TRUE)), Time = "Per Hour", Prediciton = "mean", Split = i))
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(predictDay$Outcome, predictDay$predict)$estimate, p.value = round(cor.test(predictDay$Outcome, predictDay$predict)$p.value,2), MSE = mean((predictDay$predict - predictDay$Outcome)^2, na.rm = TRUE),RMSE = sqrt(mean((predictDay$predict - predictDay$Outcome)^2, na.rm = TRUE)), Time = "Per Day", Prediciton = "mean", Split = i))
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(predictWeek$Outcome, predictWeek$predict)$estimate, p.value = round(cor.test(predictWeek$Outcome, predictWeek$predict)$p.value,2), MSE = mean((predictWeek$predict - predictWeek$Outcome)^2, na.rm = TRUE),RMSE = sqrt(mean((predictWeek$predict - predictWeek$Outcome)^2, na.rm = TRUE)), Time = "Per Week", Prediciton = "mean", Split = i))
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(predictStudy$Outcome, predictStudy$predict)$estimate, p.value = round(cor.test(predictStudy$Outcome, predictStudy$predict)$p.value,2), MSE = mean((predictStudy$predict - predictStudy$Outcome)^2, na.rm = TRUE),RMSE = sqrt(mean((predictStudy$predict - predictStudy$Outcome)^2, na.rm = TRUE)), Time = "Per Study", Prediciton = "mean", Split = i))
+
+Correlation <- rbind(Correlation,data.frame(Correlation = cor.test(predictHour_notmean$Outcome, predictHour_notmean$predict)$estimate, p.value = round(cor.test(predictHour_notmean$Outcome, predictHour_notmean$predict)$p.value,2),MSE = mean((predictHour_notmean$predict - predictHour_notmean$Outcome)^2, na.rm = TRUE),RMSE = sqrt(mean((predictHour_notmean$predict - predictHour_notmean$Outcome)^2,na.rm = TRUE)), Time = "Per Hour", Prediciton = "not mean", Split = i))
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(predictDay_notmean$Outcome, predictDay_notmean$predict)$estimate, p.value = round(cor.test(predictDay_notmean$Outcome, predictDay_notmean$predict)$p.value,2),MSE = mean((predictDay_notmean$predict - predictDay_notmean$Outcome)^2,na.rm = TRUE),RMSE = sqrt(mean((predictDay_notmean$predict - predictDay_notmean$Outcome)^2, na.rm = TRUE)), Time = "Per Day", Prediciton = "not mean", Split = i))
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(predictWeek_notmean$Outcome, predictWeek_notmean$predict)$estimate, p.value = round(cor.test(predictWeek_notmean$Outcome, predictWeek_notmean$predict)$p.value,2),MSE =mean((predictWeek_notmean$predict - predictWeek_notmean$Outcome)^2,na.rm = TRUE) ,RMSE = sqrt(mean((predictWeek_notmean$predict - predictWeek_notmean$Outcome)^2, na.rm = TRUE)),  Time = "Per Week", Prediciton = "not mean", Split = i))
+
+}
+
+Overall <- Correlation  %>%
+    group_by(Prediciton,Time)  %>%
+summarize(Correlation = mean(Correlation), p.value = mean(p.value),MSE =mean(MSE),RMSE = mean(RMSE)) %>% as.data.frame()
+
+
+######### Without caret package old ########
+res_lin1 <- lm(formula,PerHourtrain)
+predict <- predict(res_lin1,PerHourtrain)
+predict <- data.frame(predict = predict,Outcome = PerHourtrain[,Outcome], ParticipantNumber = PerHourtrain$ParticipantNumber)
+predictHour_notmean <- predict
+predict  %>%
+    group_by(ParticipantNumber) %>% summarize(Outcome = mean(Outcome, na.rm = TRUE), predict = mean(predict, na.rm = TRUE)) %>% data.frame() -> predictHour
+
+
+res_lin2 <- PerDaytrain  %>% lm(formula, data=.)
+predict <- predict(res_lin2,PerDaytrain)
+predict <- data.frame(predict = predict,Outcome = PerDaytrain[,Outcome], ParticipantNumber = PerDaytrain$ParticipantNumber)
+predictDay_notmean <- predict
+predict  %>%
+    group_by(ParticipantNumber) %>% summarize(Outcome = mean(Outcome, na.rm = TRUE), predict = mean(predict, na.rm = TRUE)) %>% data.frame() -> predictDay
+
+res_lin3 <- PerWeektrain  %>% lm(formula, data=.)
+predict <- predict(res_lin3,PerWeektrain)
+predict <- data.frame(predict = predict,Outcome = PerWeektrain[,Outcome], ParticipantNumber = PerWeektrain$ParticipantNumber)
+predictWeek_notmean <- predict
+predict  %>%
+    group_by(ParticipantNumber) %>% summarize(Outcome = mean(Outcome, na.rm = TRUE), predict = mean(predict, na.rm = TRUE)) %>% data.frame() -> predictWeek
+
+res_lin4 <- PerStudytrain  %>% lm(formula, data=.)
+predict <- predict(res_lin4,PerStudytrain)
+predictStudy <- data.frame(predict = predict,Outcome = PerStudytrain[,Outcome])
+
+Correlation <- data.frame(Correlation = cor.test(predictHour$Outcome, predictHour$predict)$estimate, p.value = round(cor.test(predictHour$Outcome, predictHour$predict)$p.value,2), MSE = mean((predictHour$predict - predictHour$Outcome)^2, na.rm = TRUE),RMSE = sqrt(mean((predictHour$predict - predictHour$Outcome)^2, na.rm = TRUE)), Time = "Per Hour", Prediciton = "mean")
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(predictDay$Outcome, predictDay$predict)$estimate, p.value = round(cor.test(predictDay$Outcome, predictDay$predict)$p.value,2), MSE = mean((predictDay$predict - predictDay$Outcome)^2, na.rm = TRUE),RMSE = sqrt(mean((predictDay$predict - predictDay$Outcome)^2, na.rm = TRUE)), Time = "Per Day", Prediciton = "mean"))
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(predictWeek$Outcome, predictWeek$predict)$estimate, p.value = round(cor.test(predictWeek$Outcome, predictWeek$predict)$p.value,2), MSE = mean((predictWeek$predict - predictWeek$Outcome)^2, na.rm = TRUE),RMSE = sqrt(mean((predictWeek$predict - predictWeek$Outcome)^2, na.rm = TRUE)), Time = "Per Week", Prediciton = "mean"))
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(predictStudy$Outcome, predictStudy$predict)$estimate, p.value = round(cor.test(predictStudy$Outcome, predictStudy$predict)$p.value,2), MSE = mean((predictStudy$predict - predictStudy$Outcome)^2, na.rm = TRUE),RMSE = sqrt(mean((predictStudy$predict - predictStudy$Outcome)^2, na.rm = TRUE)), Time = "Per Study", Prediciton = "mean"))
+
+Correlation <- rbind(Correlation,data.frame(Correlation = cor.test(predictHour_notmean$Outcome, predictHour_notmean$predict)$estimate, p.value = round(cor.test(predictHour_notmean$Outcome, predictHour_notmean$predict)$p.value,2),MSE = mean((predictHour_notmean$predict - predictHour_notmean$Outcome)^2, na.rm = TRUE),RMSE = sqrt(mean((predictHour_notmean$predict - predictHour_notmean$Outcome)^2,na.rm = TRUE)), Time = "Per Hour", Prediciton = "not mean"))
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(predictDay_notmean$Outcome, predictDay_notmean$predict)$estimate, p.value = round(cor.test(predictDay_notmean$Outcome, predictDay_notmean$predict)$p.value,2),MSE = mean((predictDay_notmean$predict - predictDay_notmean$Outcome)^2,na.rm = TRUE),RMSE = sqrt(mean((predictDay_notmean$predict - predictDay_notmean$Outcome)^2, na.rm = TRUE)), Time = "Per Day", Prediciton = "not mean"))
+
+Correlation <- rbind(Correlation, data.frame(Correlation = cor.test(predictWeek_notmean$Outcome, predictWeek_notmean$predict)$estimate, p.value = round(cor.test(predictWeek_notmean$Outcome, predictWeek_notmean$predict)$p.value,2),MSE =mean((predictWeek_notmean$predict - predictWeek_notmean$Outcome)^2,na.rm = TRUE) ,RMSE = sqrt(mean((predictWeek_notmean$predict - predictWeek_notmean$Outcome)^2, na.rm = TRUE)),  Time = "Per Week", Prediciton = "not mean"))
+
+
+plot2 <- dwplot(list(res_lin1,res_lin2,res_lin3, res_lin4), vline = geom_vline(
+               xintercept = 0,
+               linetype = 2
+           )) +
+ scale_colour_manual(name = "Resolution",labels = c("Per Study","Per Week", "Per Day", "Per Hour"), values = c( "#c32148","#0B3C69","#708FF9", "#FFCD3C")) +
+  theme_minimal() +
+  ggtitle("\n Linear Regression")
+
+plot2
+Correlation
+```
+### OLD ####
+
+## Predict to which class Participant belongs, differentiate between Alzheimer and Schizophrenia
+### Missing data labeled as NA
+
+```{r echo=FALSE, warning=FALSE}
+
+
+###### Prediction Loneliness or SFS ######
+
+
+###### Classification Participant Label #######
+formula2 <- as.formula(paste("as.factor(ParticipantLabel) ~ COMMUNICATION_APPS_pct +APP_USAGE_pct + +APPS_OPENED_norm+CLUSTER_HOME_pct+UNIQUE_STAYPOINTS_norm+UNIQUE_MACHASHES_norm"))
+ctrl <- trainControl(method = "cv", number = 2, repeats = 3)
+
+
+res5 <- PerHour %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia" ) %>% train(formula2, data = ., method = "lda", trControl = ctrl, na.action	= na.omit)
+res6 <- PerDay %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia") %>% train(formula2, data = ., method = "lda", trControl = ctrl, na.action	= na.omit)
+res7 <- PerWeek %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia") %>% train(formula2, data = ., method = "lda", trControl = ctrl, na.action	= na.omit)
+res8 <- PerStudy %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia") %>% train(formula2, data = ., method = "lda", trControl = ctrl, na.action	= na.omit)
+
+confusionMatrix(res6)
+
+
+# Predict whether Alzheimer or Schizophrenia
+## Random slopes
+set.seed(1236)
+
+FilterPerHour <- PerHour %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia")
+FilterPerDay <- PerDay %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia")
+FilterPerWeek <- PerWeek %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia")
+FilterPerStudy <- PerStudy %>% filter(ParticipantLabel !=  "Label: 4 | Schizophrenia")
+
+PNumbers <- FilterPerStudy$ParticipantNumber
+
+### Per Hour
+for(i in 1:length(PNumbers)){
+Filter <- FilterPerHour[FilterPerHour$ParticipantNumber != PNumbers[i],] 
+Filter2 <- FilterPerHour[FilterPerHour$ParticipantNumber == PNumbers[i],] 
+
+res1 <- train(formula2, data = Filter, method = "lda", na.action	= na.omit)
+predict1 <- predict(res1,Filter2,na.action = na.pass)
+predict2 <- data.frame(predict = as.character(predict1),Label = Filter2$ParticipantLabel, ParticipantNumber = Filter2$ParticipantNumber, repetition = 1, value = "single")
+if(i == 1){
+MeanPred <- data.frame(predict = max(as.character(predict2$predict), na.rm = TRUE),Label = max(predict2$Label), ParticipantNumber = max(predict2$ParticipantNumber), repetition = 1, value = "mean")
+}
+MeanPred <-  rbind(MeanPred, c(predict = max(as.character(predict2$predict), na.rm = TRUE),Label = max(predict2$Label), ParticipantNumber = max(predict2$ParticipantNumber), repetition = 1, value = "mean"))
+}
+
+confusionMatrix(table(MeanPred$Label,MeanPred$predict))
+
+for(i in 1:length(PNumbers)){
+Filter <- FilterPerWeek[FilterPerWeek$ParticipantNumber != PNumbers[i],] 
+Filter2 <- FilterPerWeek[FilterPerWeek$ParticipantNumber == PNumbers[i],] 
+
+res1 <- train(formula2, data = Filter, method = "lda", na.action	= na.omit)
+predict1 <- predict(res1,Filter2,na.action = na.pass)
+predict2 <- data.frame(predict = as.character(predict1),Label = Filter2$ParticipantLabel, ParticipantNumber = Filter2$ParticipantNumber, repetition = 1, value = "single")
+if(i == 1){
+MeanPredWeek <- data.frame(predict = max(as.character(predict2$predict), na.rm = TRUE),Label = max(predict2$Label), ParticipantNumber = max(predict2$ParticipantNumber), repetition = 1, value = "mean")
+}
+MeanPredWeek <-  rbind(MeanPred, c(predict = max(as.character(predict2$predict), na.rm = TRUE),Label = max(predict2$Label), ParticipantNumber = max(predict2$ParticipantNumber), repetition = 1, value = "mean"))
+}
+
+confusionMatrix(table(MeanPredWeek$Label,MeanPredWeek$predict))
+
+
+
+
+
+
+### Per Day
+
+Filter <- FilterPerDay[!FilterPerDay$ParticipantNumber %in% unlist(Holdout[1]),] 
+Filter2 <- FilterPerDay[FilterPerDay$ParticipantNumber %in% unlist(Holdout[1]),] 
+
+res1 <- train(formula2, data = Filter, method = "lda", na.action	= na.omit)
+predict2[i] <- data.frame(predict = as.character(predict(res1,Filter2,na.action = na.pass)),Label = Filter2$ParticipantLabel, ParticipantNumber = Filter2$ParticipantNumber, repetition = i)
+
+predict2[i]  %>%
+  group_by(ParticipantNumber) %>% 
+  summarize(Label = max(Label, na.rm = TRUE), predict = max(predict, na.rm = TRUE)) %>% data.frame() -> maxPred[i]
+
+
+### Per Week
+
+Filter <- FilterPerWeek[!FilterPerWeek$ParticipantNumber %in% unlist(Holdout[1]),] 
+Filter2 <- FilterPerWeek[FilterPerWeek$ParticipantNumber %in% unlist(Holdout[1]),] 
+
+res1 <- train(formula2, data = Filter, method = "lda", na.action	= na.omit)
+predict2[i] <- data.frame(predict = as.character(predict(res1,Filter2,na.action = na.pass)),Label = Filter2$ParticipantLabel, ParticipantNumber = Filter2$ParticipantNumber, repetition = i)
+
+predict2  %>%
+  group_by(ParticipantNumber) %>% 
+  summarize(Label = max(Label, na.rm = TRUE), predict = max(predict, na.rm = TRUE)) %>% data.frame() -> maxPred[i]
+
+
+### Per Study
+Filter <- FilterPerStudy[!FilterPerStudy$ParticipantNumber %in% unlist(Holdout[1]),] 
+Filter2 <- FilterPerStudy[FilterPerStudy$ParticipantNumber %in% unlist(Holdout[1]),] 
+
+res1 <- train(formula2, data = Filter, method = "lda", na.action	= na.omit)
+predict2[i] <- data.frame(predict = as.character(predict(res1,Filter2,na.action = na.pass)),Label = Filter2$ParticipantLabel, ParticipantNumber = Filter2$ParticipantNumber, repetition = i)
+
+predict2  %>%
+  group_by(ParticipantNumber) %>% 
+  summarize(Label = max(Label, na.rm = TRUE), predict = max(predict, na.rm = TRUE)) %>% data.frame() -> maxPred[i]
+
+
+
+
+
+counter = 1
+for(i in 1:5){
+}
+Filter <- PerHour %>% filter(ParticipantLabel != "Label: 3 | Control")
+res1 <- glmer(as.factor(ParticipantLabel) ~  HOME + UniqueNumber + TotalMinutes + COMMUNICATION + (1 | ParticipantNumber), family=binomial, data=Filter)
+
+coef1 <- coef(summary(res1)) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    rename(estimate = Estimate, std.error = Std..Error)
+
+
+Filter <- PerDaytrain %>% filter(ParticipantLabel != "Label: 3 | Control")
+res2 <-  glmer(as.factor(ParticipantLabel) ~ HOME + UniqueNumber + TotalMinutes + COMMUNICATION + (1 | ParticipantNumber), family=binomial, data=Filter)
+
+
+caret::confusionMatrix(table(True1,Predict1$ParticipantLabel))
+
+coef2 <- coef(summary(res2)) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    rename(estimate = Estimate, std.error = Std..Error)
+
+res3 <- PerWeek  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glmer(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION + (1 | ParticipantNumber), family=binomial, data=.)
+
+coef3 <- coef(summary(res3)) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    rename(estimate = Estimate, std.error = Std..Error)
+
+res4 <- PerStudy %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION, family=binomial, data=.)
+
+coef1$model = "Per Hour"
+coef2$model = "Per Day"
+coef3$model = "Per Week"
+
+plot1 <- dwplot(rbind(coef1,coef2,coef3), vline = geom_vline(
+               xintercept = 0,
+               colour = "grey60",
+               linetype = 2
+           )) +
+  scale_colour_manual(name = "Resolution",labels = c("Per Week", "Per Day", "Per Hour"), values = c("#0B3C69","#708FF9", "#FFCD3C")) +
+  theme_minimal() +
+  ggtitle("Random Intercept \n Logistic Regression ")
+
+###################################
+##### No random intercept #########
+
+### Per Hour
+Filter <- PerHour  %>% filter(ParticipantLabel != "Label: 3 | Control")
+res_lin1 <- lm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION,family = "binomial", data=Filter)
+
+
+Predict1 <- data.frame(ParticipantLabel = ifelse(predict(res_lin1,Filter, type = "response") >= 0.5,"Label: 6 | Alzheimer's disease", "Label: 4 | Schizophrenia"))
+
+predict <- data.frame(predict = Predict1,Label = Filter$ParticipantLabel, ParticipantNumber = Filter$ParticipantNumber)
+
+caret::confusionMatrix(table(predict$Label,predict$ParticipantLabel))
+
+### Do majority prediction
+predict  %>%
+    group_by(ParticipantNumber) %>% count(ParticipantLabel,Label) %>% spread(.,ParticipantLabel,n) %>%  data.frame() -> predictHour
+
+predictHour$Label..4...Schizophrenia[is.na(predictHour$Label..4...Schizophrenia)] <- 0
+predictHour$Label..6...Alzheimer.s.disease[is.na(predictHour$Label..6...Alzheimer.s.disease)] <- 0
+
+predictHour$predict <- c(ParticipantLabel = ifelse(predictHour$Label..4...Schizophrenia > predictHour$Label..6...Alzheimer.s.disease, "Label: 4 | Schizophrenia", "Label: 6 | Alzheimer's disease"))
+
+caret::confusionMatrix(table(predictHour$Label,predictHour$predict))
+
+##Per Day
+Filter <- PerDay  %>% filter(ParticipantLabel != "Label: 3 | Control")
+res_lin2 <- glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION,family = "binomial", data=Filter)
+
+True1 <- Filter$ParticipantLabel
+Predict1 <- data.frame(ParticipantLabel = ifelse(predict(res_lin2,Filter, type = "response") >= 0.5,"Label: 6 | Alzheimer's disease", "Label: 4 | Schizophrenia"))
+
+caret::confusionMatrix(table(True1,Predict1$ParticipantLabel))
+
+## Per Week
+Filter <- PerWeek  %>% filter(ParticipantLabel != "Label: 3 | Control")
+res_lin3 <- glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION,family = "binomial", data=Filter)
+
+True1 <- Filter$ParticipantLabel
+Predict1 <- data.frame(ParticipantLabel = ifelse(predict(res_lin3,Filter, type = "response") >= 0.5,"Label: 6 | Alzheimer's disease", "Label: 4 | Schizophrenia"))
+
+caret::confusionMatrix(table(True1,Predict1$ParticipantLabel))
+
+## Per Study
+Filter <- PerStudy  %>% filter(ParticipantLabel != "Label: 3 | Control")
+res_lin4 <- glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber + TotalMinutes + COMMUNICATION,family = "binomial", data=Filter)
+
+True1 <- Filter$ParticipantLabel
+Predict1 <- data.frame(ParticipantLabel = ifelse(predict(res_lin4,Filter, type = "response") >= 0.5,"Label: 6 | Alzheimer's disease", "Label: 4 | Schizophrenia"))
+
+caret::confusionMatrix(table(True1,Predict1$ParticipantLabel))
+
+plot2 <- dwplot(list(res_lin1,res_lin2,res_lin3), vline = geom_vline(
+               xintercept = 0,
+               colour = "grey60",
+               linetype = 2
+           )) +
+ scale_colour_manual(name = "Resolution",labels = c("Per Week", "Per Day", "Per Hour"), values = c("#0B3C69","#708FF9", "#FFCD3C")) +
+  theme_minimal() +
+  ggtitle("\n Logistic Regression")
+
+NAremove <- ggarrange(plot1 + theme(legend.position = "none"),plot2 + theme(axis.title.y=element_blank(),
+           axis.text.y=element_blank(), 
+           axis.ticks.y=element_blank()) , common.legend = FALSE)
+
+NAremove <- annotate_figure(NAremove, top = text_grob("Differentiation between Alzheimer & Schizophrenia (Including Missing Values)",color = "black", size = 14))
+NAremove
+```
+
+### Missing data labeled as 0
+
+```{r echo=FALSE, warning=FALSE}
+## Random slopes
+res1NA <- PerHourNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glmer(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION + (1 | ParticipantNumber), family=binomial, data=.)
+
+coef1NA <- coef(summary(res1NA)) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    rename(estimate = Estimate, std.error = Std..Error)
+
+res2NA <- PerDayNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glmer(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION + (1 | ParticipantNumber), family=binomial, data=.)
+
+coef2NA <- coef(summary(res2NA)) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    rename(estimate = Estimate, std.error = Std..Error)
+
+res3NA <- PerWeekNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glmer(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION + (1 | ParticipantNumber), family=binomial, data=.)
+
+coef3NA <- coef(summary(res3NA)) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    rename(estimate = Estimate, std.error = Std..Error)
+
+res4NA <- PerStudyNA %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION, family=binomial, data=.)
+
+coef1NA$model = "Per Hour"
+coef2NA$model = "Per Day"
+coef3NA$model = "Per Week"
+
+plot1NA <- dwplot(rbind(coef1NA,coef2NA,coef3NA), vline = geom_vline(
+               xintercept = 0,
+               colour = "grey60",
+               linetype = 2
+           )) +
+  theme_minimal() +
+  scale_colour_manual(name = "Resolution",labels = c("Per Week", "Per Day", "Per Hour"), values = c("#0B3C69","#708FF9", "#FFCD3C")) +
+  ggtitle("Random Intercept \n Logistic Regression")
+
+
+### No random slopes
+res_lin1NA <- PerHourNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION,family = "binomial", data=.)
+
+res_lin2NA <- PerDayNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION,family = "binomial", data=.)
+
+res_lin3NA <- PerWeekNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes  + COMMUNICATION,family = "binomial", data=.)
+
+res_lin4NA <- PerStudyNA  %>% filter(ParticipantLabel != "Label: 3 | Control") %>%  glm(as.factor(ParticipantLabel) ~ HOME + UniqueNumber  + TotalMinutes + COMMUNICATION,family = "binomial", data=.)
+
+
+
+plot2NA <- dwplot(list(res_lin1NA,res_lin2NA,res_lin3NA), vline = geom_vline(
+               xintercept = 0,
+               colour = "grey60",
+               linetype = 2
+           )) +
+  scale_colour_manual(name = "Resolution",labels = c("Per Week", "Per Day", "Per Hour"), values = c("#0B3C69","#708FF9", "#FFCD3C")) +
+  theme_minimal() +
+  ggtitle("\n Logistic Regression")
+
+NAnotremove <- ggarrange(plot1NA + theme(legend.position = "none"),plot2NA + theme(axis.title.y=element_blank(),
+           axis.text.y=element_blank(), 
+           axis.ticks.y=element_blank()) , common.legend = FALSE)
+
+
+NAnotremove <- annotate_figure(NAnotremove, top = text_grob("Differentiation between Alzheimer & Schizophrenia (Excluding Missing Values)",color = "black", size = 14))
+
+NAnotremove
+```
+
+```{r echo=FALSE, warning=FALSE}
+# combine plots NAremove & NAnotremove
+stargazer(res1,res1NA,res_lin1,res_lin1NA,res2,res2NA,res_lin2,res_lin2NA,res3,res3NA,res_lin3,res_lin3NA, dep.var.labels.include	= F, type = "text", add.lines = list(c("Resolution", "Hour", "Hour", "Hour", "Hour","Day", "Day", "Day", "Day", "Week", "Week", "Week", "Week"),c("Missing Data excluded", "Yes", "No", "Yes", "No","Yes", "No", "Yes", "No","Yes", "No", "Yes", "No")))
+
+stargazer(res1,res_lin1,res2,res_lin2,res3,res_lin3, dep.var.labels.include	= F, type = "text", add.lines =list( c("Resolution","Hour", "Hour", "Day", "Day", "Week", "Week")))
+
+```
+
+## Something with Change
+
+```{r}
+resultHour <- NULL
+resultDay <- NULL
+resultWeek <- NULL
+resultStudy <- NULL
+
+variables <- c("HOME",'HOME_moving24h', 'HOME_moving168h', 'HOME_moving8h','COMMUNICATION','TotalMinutes',"UniqueNumber")
+
+for(i in 1:length(variables)){
+resultHour[[i]] <- PerHour  %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia") %>%  glm(as.formula(paste("as.factor(ParticipantLabel) ~", variables[i])),family = "binomial", data=.)
+}
+
+variables <- c("HOME",'HOME_moving7d', 'HOME_moving14d', 'HOME_moving28d','COMMUNICATION','TotalMinutes',"UniqueNumber")
+
+for(i in 1:length(variables)){
+resultDay[[i]] <- PerDay  %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia") %>%  glm(as.formula(paste("as.factor(ParticipantLabel) ~", variables[i])) ,family = "binomial", data=.)
+}
+
+for(i in 1:length(variables)){
+resultWeek[[i]] <- PerWeek  %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia") %>%  glm(as.factor(ParticipantLabel) ~ HOME,family = "binomial", data=.)
+}
+
+for(i in 1:length(variables)){
+resultStudy[[i]] <- PerStudy  %>% filter(ParticipantLabel != "Label: 4 | Schizophrenia") %>%  glm(as.factor(ParticipantLabel) ~ HOME,family = "binomial", data=.)
+}
+
+plot2 <- dwplot(c(resultHour,resultDay), vline = geom_vline(
+               xintercept = 0,
+               colour = "grey60",
+               linetype = 2
+           )) +
+  theme_minimal() 
+
+plot2
+```
+
+
+```{r}
+
+```
+

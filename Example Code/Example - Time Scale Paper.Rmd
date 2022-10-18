@@ -1,0 +1,489 @@
+---
+title: "Example Code - It's all about the timing"
+author: ""
+date: ""
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(ggpubr)
+library(grid)
+library(caret)
+library(doParallel)
+library(viridis)
+
+### Load noisy datasets
+Wifi <- read.csv("/Users/annalangener/TimeScaleAnalysis/Datasets_Noise/Wifi_sample.csv")[-1]
+App <- read.csv("/Users/annalangener/TimeScaleAnalysis/Datasets_Noise/App_sample.csv")[-1]
+ESM <- read.csv("/Users/annalangener/TimeScaleAnalysis/Datasets_Noise/ESM_time_sample.csv")[-1]
+```
+
+### Example Datasets {.tabset}
+Before showing how to aggregate and analyze the data on different time scales we provide an example of what our recorded raw data looks like. For privacy reasons, random noise is added to each example dataset. We chose two sensors for illustrative purposes: WIFI and app usage. Those two sensors differ in how they are recorded. Whereas wifi connections are recorded at specific time points, app usage has a start time and duration. 
+
+#### Wifi
+```{r echo=FALSE}
+knitr::kable(Wifi[1:10,])
+```
+#### App
+```{r, echo=FALSE}
+knitr::kable(App[1:10,]) 
+```
+#### ESM
+```{r, echo=FALSE}
+knitr::kable(ESM[1:10,]) 
+```
+### {-}
+
+### Example Code for Aggregating Passive Smartphone Measures
+To create meaningful variables and to combine different sensors, we must choose a time window in which we aggregate the measures.
+
+In the following example, we will show how to create a dataset that shows passive smartphone measures aggregated X hours before each ESM measurement was filled out
+
+#### 1. Bring data into the right format
+We begin with converting all dates to class "POSIXct" in order to represent them as calendar dates and times.
+```{r echo=TRUE}
+Wifi$recorded_naive <- as.POSIXct(Wifi$recorded_naive) 
+App$recorded_naive <- as.POSIXct(App$recorded_naive)
+ESM$Date <- as.POSIXct(ESM$Date)
+```
+
+We continue with adding the end time to the app usage dataset.
+```{r echo=TRUE}
+App$end_time <-  as.POSIXct(c(rep(NA,nrow(App)))) #Add "empty" end time column (with the class POSIXct)
+
+for(i in 1:nrow(App)){
+   App$end_time[i]  <- App$recorded_naive[i] + App$duration[i] #Add start time (recorded_naive) and duration together to calculate the end time
+}
+```
+
+```{r echo=FALSE}
+knitr::kable(App[1:10,]) 
+```
+
+Next, we create a dataset that shows app usage per second. This will help us to summarize app usage before the ESM questionnaire was filled out.
+```{r echo=TRUE}
+# The following code is adapted from:
+# https://stackoverflow.com/questions/57245771/how-do-i-fill-time-sequence-based-on-start-and-end-time-in-r
+
+# seq.POSIXt() creates a sequence of times (e.g., 2021-10-25 17:17:01 CEST, 2021-10-25 17:17:02 CEST, 2021-10-25 17:17:03 CEST). This function is vectorized, which means that it is directly performed on the whole vector (= column).
+vec_seq <- Vectorize(seq.POSIXt, vectorize.args = c("from", "to"))
+
+App_persecond <- App %>%
+  transmute(genre, Date = vec_seq(recorded_naive, end_time, 1)) %>% #transmute() will create a new variable (Date) based on the vec_seq() function (which takes the following arguments: from = recorded_naive, to = end_time, by = 1 (by one second))
+  unnest(cols = c(Date)) # displays each value of the time sequence as separate row
+```
+
+```{r echo=FALSE}
+knitr::kable(App_persecond[1:10,]) 
+```
+
+#### 2. Match with ESM data
+As a next step, we match our datasets (from different measures) with the ESM data. For this, we loop through the filled-out ESM questionnaires and summarize the passive measures X hours before the ESM questionnaire was filled out. For X we can choose any value. In this example, we aggregate the measures three hours before the ESM questionnaire was filled out. In our paper, we explore other time windows as well.
+
+```{r echo=TRUE,message=FALSE}
+### DECIDE HERE ON WHICH LEVEL YOU WANT TO AGGREGATE THE PASSIVE MEASURES ####
+rule_int = 3 # How much hours before the ESM questionnaire do you want to aggregate the variables on?
+
+
+#### Create dataframes that we will grow in our loop
+FeatureOverviewApps <- data.frame(Date = ESM$Date[1])
+FeatureOverviewWifi <- data.frame(Date = ESM$Date[1])
+
+for (i in 1:nrow(ESM)) {
+  time = as.POSIXct(ESM$Date[i]) # loop through each time point at which an ESM questionnaire was filled out
+  
+  ####### APP USAGE #########
+  
+  # Here we calculate how long each app category was used before the ESM questionnaire was filled out.
+  # We select the rows that are between x hours before the ESM questionnaire (time - rule_int) but not after the questionnaire was filled out. If no time points are included in the dataset, an empty tibble will be created and, thus, no row will be added.
+  
+  App_beforeESM <-
+    App_persecond[(App_persecond$Date > (time - rule_int * 60 * 60)) &
+                    (App_persecond$Date < time), ] %>% # We have to multiply the hours two times by 60 to calculate it in seconds
+    group_by(genre) %>%
+    summarise(Date = time, TotalMinutes = n() / 60) # We divide by 60, because each row is one second. Thus we have to divide by 60 to get the time in minutes.
+  
+  # Rename variables for clarity
+  App_beforeESM$Genre_min = paste(App_beforeESM$genre, "_min", sep = "")
+  App_beforeESM <-
+    App_beforeESM[, -1] # We don't need the genre column anymore (because we renamed it for clarity)
+  
+  # Bring data in wide format
+  App_beforeESM <- spread(App_beforeESM, Genre_min, TotalMinutes)
+  
+  ### Here we add the total minutes of app usage
+  # For this we simply calculate the sum
+  App_beforeESM$APP_USAGE_min <- rowSums(App_beforeESM[, -1])
+  
+  FeatureOverviewApps = full_join(FeatureOverviewApps, App_beforeESM)
+  
+  ####### Wifi #########
+  TOTAL_MACHASHES_number <-
+    Wifi[(Wifi$recorded_naive > (time - rule_int * 60 * 60)) &
+           (Wifi$recorded_naive < time), ] %>% nrow() # Here we calculate the total number of recorded wifi connections (X hours before but not after the ESM was filled out)
+  
+  UNIQUE_MACHASHES_number <-
+    Wifi[(Wifi$recorded_naive > (time - rule_int * 60 * 60)) &
+           (Wifi$recorded_naive < time), ] %>% .[!duplicated(.$mac_hash),]  %>% nrow() # Here we calculate the number of unique recorded wifi connections (X hours before but not after the ESM was filled out)
+  
+  Wifi_beforeESM <-
+    data.frame(
+      Date = time,
+      TOTAL_MACHASHES_number = TOTAL_MACHASHES_number,
+      UNIQUE_MACHASHES_number = UNIQUE_MACHASHES_number
+    )
+  
+  FeatureOverviewWifi = full_join(FeatureOverviewWifi, Wifi_beforeESM)
+  
+  ###### More Features & Sensors can be added here #####
+  ### ......
+}
+```
+
+### {.tabset}
+#### Wifi
+```{r echo=FALSE}
+knitr::kable(FeatureOverviewWifi[1:10,])
+```
+#### App
+```{r, echo=FALSE}
+knitr::kable(FeatureOverviewApps[1:10,]) 
+```
+### {-}
+
+
+### Example Code for Labeling Missing Values
+Missing data must be identified. Compared to most actively assessed data it is not always directly observable whether passive data is missing or not. For measures such as app usage, we do not know whether we do not have data because no apps were used or because of technical problems. This means that we must decide based on which time frame we want to exclude app usage if no app usage was recorded.
+
+In this example, we check for app usage for each day whether more than 18 subsequent hours are without recorded data. If so, we exclude all data from that day.
+
+```{r echo=TRUE}
+FeatureOverviewApps <- right_join(FeatureOverviewApps,data.frame(Date = ESM$Date), by = c("Date")) #Here we also include days in our feature overview that are without any app data (but have ESM data).
+```
+
+```{r echo=TRUE, message=FALSE}
+#### SET HERE THE MISSING Threshold ####
+MissingThreshold <-
+  18 # Here we set it to 18 hours (other windows could have been chosen as well)
+
+#Show app usage per hour, to calculate how many hours per day are without app usage
+LabelMissing_App <- App_persecond %>%
+  group_by(Date = floor_date(Date, "1 hour")) %>%
+  summarize(Usage = n() / 60)
+
+LabelMissing_App$Time <-
+  format(LabelMissing_App$Date, format = "%H")
+LabelMissing_App$Time <- as.numeric(LabelMissing_App$Time)
+
+# Calculate differences: How many hours in between are without app usage?
+LabelMissing_App <- LabelMissing_App %>%
+  group_by(floor_date(Date, "1 day")) %>% #Calculates missing values per day
+  summarise(Date = Date,
+            Time = Time,
+            difference = abs(Time - lag(Time))) # lag(Time) shows the next time point, which makes it possible to calculate the difference between two time points.
+
+# Calculate how many hours past from 00:00 to the first recorded app usage (the first difference will be "NA")
+LabelMissing_App$difference[is.na(LabelMissing_App$difference)] <-
+  LabelMissing_App$Time[is.na(LabelMissing_App$difference)]
+
+# Set the very first measurement to 0 (because the data collection might have started at any point of the day). Thus, we don't want to exclude the first day.
+LabelMissing_App$difference[1] <- 0
+
+# Create an index
+LabelMissing_App$difference_index <- 0
+
+# Compare whether the difference is greater than our missing treshhold
+LabelMissing_App$difference_index[LabelMissing_App$difference > MissingThreshold] <-
+  1
+
+######## Check for other direction (the same again just different lag)
+LabelMissing_App <- LabelMissing_App %>%
+  group_by(floor_date(Date, "1 day")) %>% #Calculates missing values per day
+  summarise(
+    Date = Date,
+    Time = Time,
+    difference = abs(Time - lead(Time, 1)),
+    difference_index = difference_index
+  ) # Change to other direction, lead(Time) shows the previous time point
+
+# Calculate how many hours past from the last recorded measurement to 00:00 (the difference for the last recorded measurement will be NA)
+LabelMissing_App$difference[is.na(LabelMissing_App$difference)] <-
+  24 - LabelMissing_App$Time[is.na(LabelMissing_App$difference)]
+
+# Set last measurement to 0 (because the last day can end at any point)
+LabelMissing_App$difference[nrow(LabelMissing_App)] <- 0
+
+# Compare whether the difference is greater than our missing treshhold
+LabelMissing_App$difference_index[LabelMissing_App$difference > MissingThreshold] <-
+  1 
+```
+
+We created a dataset that shows for each day how many hours are without data between measurements. This variable is called “difference”. If the difference is more than our threshold, the difference_index will be one.
+```{r, echo=FALSE}
+knitr::kable(LabelMissing_App[1:10,]) 
+```
+
+As a next step, we label all data points from a day as missing if no App usage was recorded for X hours during that day.
+```{r echo=TRUE, message=FALSE}
+#First, we label all NA as 0
+FeatureOverviewApps[is.na(FeatureOverviewApps)] <- 0
+
+# Second, we label all data points from a day as missing if X hours during that day are missing
+for (i in 1:nrow(FeatureOverviewApps)) {
+  # We loop through each row of the dataset, if the date has a difference_index of one, this specific day will be labeled as missing. A difference_index of one means that more hours than the missing threshold are missing for that day.
+  if (!floor_date(FeatureOverviewApps$Date[i], "1 day") %in% LabelMissing_App$`floor_date(Date, "1 day")`[LabelMissing_App$difference_index == 0]) {
+    FeatureOverviewApps[i, -1] = NA
+  }
+}
+
+# You can add other measures here
+#..... 
+```
+
+As the last step we merge our datasets from our different sensors and ESM.
+```{r echo=TRUE}
+# Merge different datasets
+FeatureOverview <- merge(FeatureOverviewApps,FeatureOverviewWifi)
+FeatureOverview$timescale_beforeESM <- paste(rule_int, "h", sep = "")
+FeatureOverview$ParticipantNumber = "Example Participant"
+
+# Merge with pa
+FeatureOverview <- right_join(FeatureOverview,ESM, by = c("Date"))
+FeatureOverview['pa_mean'] <- FeatureOverview %>% select(c("pa_happy_sliderNegPos","pa_energy_sliderNegPos","pa_relax_sliderNegPos")) %>% rowMeans()
+```
+
+```{r, echo=FALSE}
+knitr::kable(FeatureOverview[1:5,]) 
+```
+
+### Example Code for Analyzing Data Aggregated on Different Time Scales
+
+##### Violin Plots
+To better understand how the data varies over different time scales, it is a good start to visualize it. For this, we are using violin plots. Violin plots show the distribution of the data, which is here aggregated three hours before ESM was filled out. In our paper, we explore other time scales as well. The code provided is also able to display more than one time scale if those are present in the dataset. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Here transform the variable as an ordered factor. Thus, the timescales will be displayed in the right order.
+FeatureOverview$timescale_beforeESM <- ordered(FeatureOverview$timescale_beforeESM,levels = c("1h","3h","6h","9h","12h","24h"))
+FeatureOverview$timescale_beforeESM_num <- recode(FeatureOverview$timescale_beforeESM, "1h" = 1, "3h" = 3,"6h" = 6,"9h" = 9,"12h" = 12, "24h" = 24 ) #This is used to calculate the percentages
+
+# We use ggplot to create the violin plots
+source("https://raw.githubusercontent.com/datavizpyr/data/master/half_flat_violinplot.R")
+
+FeatureOverview[FeatureOverview$ParticipantNumber == "Example Participant", ] %>%  ggplot(
+  .,
+  aes(
+    x = 1,
+    y = APP_USAGE_min / timescale_beforeESM_num / 60,
+    fill = timescale_beforeESM,
+    color = timescale_beforeESM
+  )
+) + #We divide the minutes of app usage by the hours of aggregation and by 60 to calculate the percentage
+  geom_flat_violin(alpha = 0.5,
+                   position = position_nudge(x = .3, y = 0),
+                   width = 0.6) +
+  geom_point(position = position_jitter(seed = 1, width = 0.15)) +
+  theme_minimal() +
+  xlab("") +
+  ylab("") +
+  labs(fill = '', color = '') +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    text = element_text(size = 14),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  facet_grid(cols = vars(timescale_beforeESM)) +
+  scale_color_manual(
+    breaks = c("1h", "3h", "6h", "9h", "12h", "24h"),
+    values = c(
+      "#440154",
+      "#443983",
+      "#31688e",
+      "#21918c",
+      "#35b779",
+      "#90d743"
+    )
+  ) +
+  scale_fill_manual(
+    breaks = c("1h", "3h", "6h", "9h", "12h", "24h"),
+    values = c(
+      "#440154",
+      "#443983",
+      "#31688e",
+      "#21918c",
+      "#35b779",
+      "#90d743"
+    )
+  )
+
+```
+
+##### Correlation Analysis
+To investigate the impact of choosing different time scales when relating multiple variables to one another, we calculate the bivariate correlation between minutes spent on apps and positive affect as measured through ESM. Here we provide an example code for generating the scatter plots including the correlation. Here we use again app usage that is aggregated three hours before ESM was filled out. In our paper, we explore other time scales as well. The code provided is also able to display more than onetime scale if those are present in the dataset. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(FeatureOverview[FeatureOverview$ParticipantNumber == "Example Participant", ], aes(x =
+                                                                                            APP_USAGE_min, y = pa_mean)) +
+  geom_point(colour = "#440154FF") +
+  geom_smooth(
+    method = "lm",
+    se = TRUE,
+    fullrange = FALSE,
+    level = 0.95,
+    colour = "#21908CFF",
+    fill = "#21908CFF"
+  ) +
+  stat_cor(
+    method = "pearson",
+    p.accuracy = 0.01,
+    r.accuracy = 0.01,
+    label.y = 0.3,
+    label.sep = ",",
+    label.x = 0,
+    na.rm = TRUE,
+    cor.coef.name = c("r")
+  ) +
+  theme_minimal() +
+  facet_grid(cols = vars(timescale_beforeESM), scales = "free_x") +
+  ylim(c(0, 10)) +
+  ylab("Positive Affect") +
+  xlab("Minutes beeing at Home")  +
+  theme(text = element_text(size = 16), axis.text.x = element_text(hjust = 0.8))
+```
+
+### Choosing different Moving Windows while analyzing the data
+Researchers often choose a particular moving window when using passive smartphone measures to build (individualized) prediction models for mood and psychological symptoms. For using these kinds of prediction models it is common to split the data into a train set (which is used to build the prediction model) and a test set (which is used to evaluate the prediction performance). Since we use time-series data, it is important to take the order of the data into account when splitting the data into a train and test set. In other words, it is important to take the temporal direction into account, which means that we only use past data to predict momentary positive affect. For doing so, a moving window cross-validation strategy can be used. This means that we train the model on past data points to predict the next data point. This procedure will be repeated until the end of the dataset is reached. The test set will contain all predictions that were made across the different models.
+
+We use the caret package for our analysis. More information about the caret package and time series cross-validation can be found here:
+https://topepo.github.io/caret/data-splitting.html#data-splitting-for-time-series
+
+```{r echo=TRUE, warning=FALSE}
+# First we omit rows with missing data. How to handle missing data (once it is identified), for example, whether to impute missing data or whether to exclude missing data, is another important decision. For simplicity we decided to exlcude missing data here. The participant used in our example in the paper did not have any missing data.
+FeatureOverview <- na.omit(FeatureOverview)
+
+# Here we specify what we want to predict and which passive smartphone measures we are using for doing so 
+
+formula2 <- as.formula(paste("pa_mean ~  SOCIAL_min +
+               COMMUNICATION_min +
+               APP_USAGE_min +
+               TOTAL_MACHASHES_number +
+               UNIQUE_MACHASHES_number"))
+
+# Here we specify what the minimum and maximum size of the moving window is
+min_window = 6
+max_window = 8
+
+# For our analysis we made use of parallel computing 
+cl <- makePSOCKcluster(detectCores()-1)
+registerDoParallel(cl)
+
+OverallResults <- list() #create a list to store the results
+
+for(k in c(min_window:max_window)){ # here we loop through the different moving window sizes
+  start_time2 <- Sys.time()
+  
+  set.seed(12361488)
+  timeSlices <- createTimeSlices(1:nrow(FeatureOverview), 
+                                 initialWindow = k, horizon = 1, fixedWindow = TRUE) # We use the createTimeSlices to split our dataframe into a train and test set
+  
+  trainSlices <- timeSlices[[1]]
+  testSlices <- timeSlices[[2]]
+  
+  fitControl <- trainControl(method = "LOOCV",
+                             number = 1) # to use leave-one-out-cross-validation to choose the best hyperparameters (= number of predictors)  in the training set.
+  
+  pred <- rep(NA,length(trainSlices)) #we create empty vectors to store the results
+  true <- rep(NA,length(trainSlices))
+  w <- rep(NA,length(trainSlices))
+  index <- rep(NA,length(testSlices))
+  
+  for(i in 1:length(trainSlices)){
+    
+    model<- train(formula2, data=FeatureOverview[trainSlices[[i]],],trControl = fitControl, method="rf", na.action = na.omit) #Here the prediction model is build
+    
+  # Next we store the results from the prediction model by making predictions for our test set. The predict() function automatically uses the "best" model (based on loocv from the trains set)
+    
+    pred[i] <- predict(model,FeatureOverview[testSlices[[i]],])
+    true[i] <- FeatureOverview$pa_mean[testSlices[[i]]]
+    w[i] <- k
+    index[i] <- as.numeric(testSlices[[i]])
+  
+  }
+ 
+    end_time2 <- Sys.time()
+    results <- cbind(pred,true,w,index)
+    OverallResults[[k-min_window+1]] <- results # store results in our empty list
+    print(paste("Completed Time Window:",w[1],", Running time:", paste(end_time2 - start_time2)))
+}
+
+#stopCluster(cl)
+
+OverallResults <- as.data.frame(do.call("rbind",OverallResults)) #Combine lists into one dataframe
+```
+
+We create a data frame that shows the predicted (pred) and true values for different moving window sizes (w). The "index" columns indicate for which data point the prediction was made. If we use a moving window of six, the first predicted point will be the seventh data point. In contrast, if we use a moving window of seven the first predicted point will be the eighth data point.
+
+```{r, echo=FALSE}
+knitr::kable(OverallResults[1:10,]) 
+```
+
+As a next step, we calculate the prediction accuracy and plot the results. The code provided can plot the results for different moving window sizes. In this example, the prediction accuracy is very low (even negative), since we used a noisy dataset and only a few predictors.
+
+```{r echo=TRUE}
+OverallResults <-
+  OverallResults[OverallResults$index > max_window, ] # make test set the same length for all moving window sizes
+
+# Create empty dataframe to store results
+size = length(max_window:min_window)
+OverallResultsPerformance <-
+  data.frame(
+    i = unique(OverallResults$w),
+    cor = rep(NA, size),
+    cor.int_1 = rep(NA, size),
+    cor.int_2 = rep(NA, size),
+    rsq = rep(NA, size),
+    RMSE = rep(NA, size)
+  )
+
+# calculate prediction accuracy for each moving window (w)
+for (i in unique(OverallResults$w)) {
+  results <-
+    OverallResults[OverallResults$w == i, ] # loop through different moving windows
+  
+  cor = cor.test(results$pred, results$true)$estimate # calculate/save the correlation
+  cor.int_1 = cor.test(results$pred, results$true)$conf.int[1] # save lower confidence interval
+  cor.int_2 = cor.test(results$pred, results$true)$conf.int[2] # save upper confidence interval
+  
+  rss <-
+    sum((results$pred - results$true) ^ 2)  # residual sum of squares
+  tss <-
+    sum((results$true - mean(results$true)) ^ 2)  # total sum of squares
+  rsq <- 1 - rss / tss
+  
+  RMSE <- RMSE(results$pred, results$true)
+  
+  OverallResultsPerformance[OverallResultsPerformance$i == i, ] <-
+    cbind(i, cor, cor.int_1, cor.int_2, rsq, RMSE)
+}
+
+
+ggplot() +
+  geom_line(aes(y = OverallResultsPerformance$rsq, x = OverallResultsPerformance$i, color = "3h")) +
+  # ... different colors could be added
+  theme_minimal() +
+  xlab("Moving Window Size") +
+  ylab("R-squared") +
+  scale_color_viridis(
+    discrete = TRUE,
+    limits = c("24h", "12h", "9h", "6h", "3h", "1h", "rolling mean")
+  ) +
+  labs(color = "Level of Aggregation")
+
+```

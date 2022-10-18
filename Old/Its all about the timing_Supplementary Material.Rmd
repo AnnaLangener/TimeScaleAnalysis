@@ -1,0 +1,221 @@
+---
+title: "It’s all about timing - Supplementary Material"
+author: "Anna Langener"
+date: "2022-08-18"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+library('dplyr')
+library('ggplot2')
+library('plotly')
+library("runner")
+library("hrbrthemes")
+library("viridis")
+library("ggpubr")
+library("tidyr")
+library("knitr")
+library("dotwhisker")
+library("stargazer")
+library("lme4")
+
+###### Scripts used ###########
+# 0. Python script
+# (1. data_matching.R)
+# 2. Calculation Correlation.R
+# 3. ParallelComputingML.R
+
+###### Load dataframes #########
+################################
+
+####### Affect data #######
+#24h missing
+Affect_Passive <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_090622_24missing.csv")
+Affect_Passive <- Affect_Passive[Affect_Passive$questionListName != "Morning assessment 1" & Affect_Passive$questionListName != "Morning Assessment",]
+
+#12h
+Affect_Passive_12m <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_090622_12missing.csv")
+Affect_Passive_12m <- Affect_Passive_12m[Affect_Passive_12m$questionListName != "Morning assessment 1" & Affect_Passive_12m$questionListName != "Morning Assessment",]
+
+#18h
+Affect_Passive_18m <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_090622_18missing.csv")
+Affect_Passive_18m <- Affect_Passive_18m[Affect_Passive_18m$questionListName != "Morning assessment 1" & Affect_Passive_18m$questionListName != "Morning Assessment",]
+
+### Labeled following sensors as missing:
+# Apps (whole day without app usage)
+# Location (whole day without GPS coordinates, based on raw GPS)
+# Wifi (whole day without wifi data)
+# Bluetooth (whole day without Bluetooth data)
+
+Affect_Passive_allsensor_NA <- Affect_Passive
+Affect_Passive_allsensor_NA_12m <- Affect_Passive_12m
+Affect_Passive_allsensor_NA_18m <- Affect_Passive_18m
+
+Affect_Passive_allsensor_NA[is.na(Affect_Passive$APP_USAGE_min) | is.na(Affect_Passive$TIME_STATIONARY_min) | is.na(Affect_Passive$TOTAL_MACHASHES_number) | is.na(Affect_Passive$BLUETOOTH_TOTAL_MACHASHES_number),!colnames(Affect_Passive_allsensor_NA) %in% c("ParticipantNumber","Date", "pa_mean", "na_mean", "timescale_beforeESM")] <- NA
+
+Affect_Passive_allsensor_NA_12m[is.na(Affect_Passive_12m$APP_USAGE_min) | is.na(Affect_Passive_12m$TIME_STATIONARY_min) | is.na(Affect_Passive_12m$TOTAL_MACHASHES_number) | is.na(Affect_Passive_12m$BLUETOOTH_TOTAL_MACHASHES_number),!colnames(Affect_Passive_allsensor_NA_12m) %in% c("ParticipantNumber","Date", "pa_mean", "na_mean", "timescale_beforeESM")] <- NA
+
+Affect_Passive_allsensor_NA_18m[is.na(Affect_Passive_18m$APP_USAGE_min) | is.na(Affect_Passive_18m$TIME_STATIONARY_min) | is.na(Affect_Passive_18m$TOTAL_MACHASHES_number) | is.na(Affect_Passive_18m$BLUETOOTH_TOTAL_MACHASHES_number),!colnames(Affect_Passive_allsensor_NA_18m) %in% c("ParticipantNumber","Date", "pa_mean", "na_mean", "timescale_beforeESM")] <- NA
+
+Affect_Passive_no_NA <- Affect_Passive
+
+Affect_Passive_no_NA[is.na(Affect_Passive_no_NA)] <- 0
+```
+
+## Test {.tabset}
+
+### 1
+
+```{r}
+summary(cars)
+```
+
+### 2
+
+
+https://bookdown.org/yihui/rmarkdown/interactive-documents.html
+
+## Temporal resolution while aggregating the data
+
+
+### Example 1: Descriptive figures showing the variability of smartphone sensors
+```{r eval=FALSE, include=FALSE}
+Affect_Passive$timescale_beforeESM <- ordered(Affect_Passive$timescale_beforeESM,levels = c("1h","3h","6h","9h","12h","24h"))
+
+Affect_Passive$timescale_beforeESM_num <- recode(Affect_Passive$timescale_beforeESM, "1h" = 1, "3h" = 3,"6h" = 6,"9h" = 9,"12h" = 12, "24h" = 24 )
+
+
+########## Plotly ##########
+############################
+library(plotly)
+
+create_buttons <- function(df, y_axis_var_names) {
+  lapply(
+    y_axis_var_names,
+    FUN = function(var_name, df) {
+      button <- list(
+        method = 'update',
+        args = list(list(y = list(df[df$ParticipantNumber == var_name,"Cluster_HOME_min"]/60/df[df$ParticipantNumber == var_name,"timescale_beforeESM_num"]))), label = var_name
+      )
+    },
+    df
+  )
+  
+}
+
+ 
+y_axis_var_names <- unique(Affect_Passive$ParticipantNumber)
+df = Affect_Passive
+
+ 
+p <- plot_ly(data = Affect_Passive[Affect_Passive$ParticipantNumber == 117119,], type = 'violin', jitter = 1, points = 'all', width = 1,
+    x = ~timescale_beforeESM,
+    y = ~Cluster_HOME_min/60/timescale_beforeESM_num,
+    side = "positive",
+    spanmode = "hard",
+    box = list(
+      visible = F
+    ),
+    meanline = list(
+      visible = F
+    )
+  ) %>%
+     layout(
+         font = list(size = 10),
+         yaxis = list(title = ""),
+         xaxis = list(title = ""),
+         margin = list(t=120),
+         updatemenus = list(
+             list(
+                 y = 0.7,
+                 buttons = create_buttons(df, y_axis_var_names)
+             )
+         ))
+```
+
+### Example 2: Using a different level of aggregation to calculate the Correlation between Smartphone Measures and Affec
+
+```{r eval=FALSE, include=FALSE}
+y_axis_var_names <- unique(Affect_Passive$ParticipantNumber)
+df = Affect_Passive
+
+create_buttons <- function(df, y_axis_var_names) {
+  lapply(
+    y_axis_var_names,
+    FUN = function(var_name, df) {
+      button <-   
+        list(
+        method = 'update',
+        args = list(list(data = list( Affect_Passive %>%
+  group_by(timescale_beforeESM)),y = list(.[.$ParticipantNumber == var_name,"APP_USAGE_min"]))),
+        label = var_name
+      )
+    },
+    df
+  )
+}
+
+test <- Affect_Passive %>%
+  group_by(timescale_beforeESM) %>%
+  plot_ly(., x = ~Cluster_HOME_min, y = ~pa_mean, type = "scatter", opacity = 0.5,
+               mode = "markers",
+               marker = list(
+                 color = "blue"
+               )) %>%
+     layout(
+         font = list(size = 10),
+         yaxis = list(title = ""),
+         xaxis = list(title = ""),
+         margin = list(t=120),
+         updatemenus = list(
+             list(
+                 y = 0.7,
+                 buttons = create_buttons(df, y_axis_var_names)
+             )
+         )) %>%
+  subplot(nrows = 1, shareX = TRUE, shareY = TRUE)  
+
+
+
+
+
+
+
+  
+  ggplotly(ggplot(Affect_Passive, aes(x = Cluster_HOME_min, y = pa_mean )) +
+  geom_point(colour = "#440154FF" ) +
+  geom_smooth(method="lm", se=TRUE, fullrange=FALSE, level=0.95, colour ="#21908CFF", fill ="#21908CFF") +
+  stat_cor(method = "pearson",p.accuracy = 0.01, r.accuracy = 0.01, label.y = 0.3, label.sep = ",", label.x = 0, na.rm = TRUE, cor.coef.name = c("r")) +
+  theme_minimal() +
+  facet_grid(cols = vars(timescale_beforeESM), scales="free_x") +
+  ylim(c(0,10)) +
+  ylab("Positive Affect") +
+  xlab("Minutes beeing at Home")  +
+theme(text = element_text(size= 16), axis.text.x=element_text(hjust = 0.8))) %>%
+     layout(
+         font = list(size = 10),
+         yaxis = list(title = ""),
+         xaxis = list(title = ""),
+         margin = list(t=120),
+         updatemenus = list(
+             list(
+                 y = 0.7,
+                 buttons = create_buttons(df, y_axis_var_names)
+             )
+         ))
+
+
+
+
+
+```
+
+
+## Handling Missing Data
+```{r eval=FALSE, include=FALSE}
+```
+
+## Percentage of excluded data
+
+## Correlation

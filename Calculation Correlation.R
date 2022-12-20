@@ -1,3 +1,15 @@
+library('dplyr')
+library('ggplot2')
+library('plotly')
+library("runner")
+library("hrbrthemes")
+library("viridis")
+library("ggpubr")
+library("tidyr")
+library("knitr")
+library("dotwhisker")
+library("stargazer")
+library("lme4")
 
 calculateCorr_pa <- function(Affect_Passive){ # Affect_Passive is dataset
   

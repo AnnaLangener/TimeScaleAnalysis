@@ -63,18 +63,23 @@ Affect_Passive_allsensor_NA_18m[is.na(Affect_Passive_18m$APP_USAGE_min) | is.na(
 ### Temporal resolution while aggregating the data
 #### Example 1.1: Descriptive Figures
 ```{r include=FALSE}
+# load the grid library
 library(grid)
+# load the half_flat_violinplot.R file from the data repository
 source("https://raw.githubusercontent.com/datavizpyr/data/master/half_flat_violinplot.R")
 
+# order the timescale_beforeESM variable
 Affect_Passive$timescale_beforeESM <- ordered(Affect_Passive$timescale_beforeESM,levels = c("1h","3h","6h","9h","12h","24h"))
 
+# create a new variable timescale_beforeESM_num, which is a numeric version of timescale_beforeESM
 Affect_Passive$timescale_beforeESM_num <- recode(Affect_Passive$timescale_beforeESM, "1h" = 1, "3h" = 3,"6h" = 6,"9h" = 9,"12h" = 12, "24h" = 24 )
 
 ####### GPS #######
 ###################
+# create a plot of the GPS data for participant 117119
 plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),] %>%  ggplot(., aes( x = 1, y=Cluster_HOME_min/timescale_beforeESM_num/60, fill = timescale_beforeESM, color = timescale_beforeESM)) + 
   geom_flat_violin(alpha = 0.5, position = position_nudge(x = .3, y = 0), width = 0.6) +
-  geom_point() +
+  geom_point(position = position_jitter(seed = 1, width = 0.15, height = 0)) +
   theme_minimal() +
   xlab("") + 
   ylab("") +
@@ -87,8 +92,9 @@ plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),] %>%  gg
   scale_fill_manual(breaks = c("1h","3h","6h","9h","12h", "24h"),
                         values=c("#440154", "#443983", "#31688e","#21918c","#35b779","#90d743"))
 
+# save the plot as a jpg file
 ggsave(
-  "plot_117119_simple_nojit.jpg",
+  "plot_117119_simple.jpg",
   plot = plot2,
   width = 20,
   height = 6,
@@ -96,6 +102,7 @@ ggsave(
   dpi = 300,
   limitsize = TRUE,
   bg = NULL)
+
 
 
 ####### Calling #######
@@ -118,7 +125,7 @@ plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),] %>%  gg
   theme(legend.position = "none", axis.text.x=element_blank(),
         axis.ticks.x=element_blank(), text = element_text(size= 14), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
   geom_text(data    = dat_text,mapping = aes(x = -Inf, y = -Inf, label = label),x   = 1.47,y   = 0.03) +
-  geom_curve(data = dat_text, x = 1.45, y = 0.022, xend = 1.40, yend = 0, curvature = .1, arrow = arrow(length = unit(2, "mm"))) +
+#  geom_curve(data = dat_text, x = 1.45, y = 0.022, xend = 1.40, yend = 0, curvature = .1, arrow = arrow(length = unit(2, "mm"))) +
   facet_grid(cols = vars(timescale_beforeESM)) +
   scale_color_manual(breaks = c("1h","3h","6h","9h","12h", "24h"),
                         values=c("#440154", "#443983", "#31688e","#21918c","#35b779","#90d743")) +
@@ -139,9 +146,12 @@ ggsave(
 
 Calculate mean value & standard deviation
 ```{r include=FALSE}
+# this code is to calculate the mean and sd of the number of minutes spent at home per day
 sum_stat_Home = Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),] %>% group_by(timescale_beforeESM) %>% summarise(mean = mean(Cluster_HOME_min/timescale_beforeESM_num/60, na.rm = TRUE), sd = sd(Cluster_HOME_min/timescale_beforeESM_num/60, na.rm = TRUE))
 
+# this code is to calculate the mean and sd of the number of calls per day
 sum_stat_Call = Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),] %>% group_by(timescale_beforeESM) %>% summarise(mean = mean(CALL_TOTAL_min/timescale_beforeESM_num, na.rm = TRUE), sd = sd(CALL_TOTAL_min/timescale_beforeESM_num, na.rm = TRUE))
+
 
 ```
 
@@ -191,7 +201,7 @@ Home_scatter <- ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(11
   facet_grid(cols = vars(timescale_beforeESM), scales="free_x") +
   ylim(c(0,10)) +
   ylab("Positive Affect") +
-  xlab("Minutes beeing at Home")  +
+  xlab("Minutes being at Home")  +
 theme(text = element_text(size= 16), axis.text.x=element_text(hjust = 0.8))
 
 ggsave("plot_home_scatter.jpg",plot = Home_scatter, width = 26, height =8,units = c("cm"),dpi = 300,limitsize = FALSE,bg = NULL)
@@ -278,21 +288,21 @@ missing_plotdata <- rbind(missing1,missing2,missing3,missing4,missing5,missing6)
 plot_missing_gps <- ggplot(missing_plotdata[missing_plotdata$index == "TIME_STATIONARY_min",], aes(fill=cond, y=P117119_p, x=missing)) + 
     geom_bar(position="dodge", stat="identity") +
   theme_minimal() +
-  scale_fill_manual(values = c("#21918c","#440154"),breaks=c('Sensor Specific', 'Non Sensor Specific'),  labels = c("Only excluded if GPS is missing", "Excluded based on other measures")) +
+  scale_fill_manual(values = c("#440154", "#21918c"),breaks=c('Non Sensor Specific','Sensor Specific'),  labels = c("Excluded based on other measures","Only excluded if GPS is missing")) +
   theme( legend.title=element_blank()) +
   ggtitle("") +
-  ylab("Percentage of excluded Data") +
+  ylab("Proportions of excluded data") +
   xlab("") +
   #coord_cartesian(ylim=c(0,0.5)) +
-  theme(legend.text = element_text(size=10)) +
+  theme(legend.text = element_text(size=10), legend.position = "top") +
   geom_text(aes(label = paste("n =", round(P117119, 2))),position = position_dodge(0.8), vjust = -0.2)
 
 
 ggsave(
   "plot_missingcount_poster.jpg",
   plot = plot_missing_gps,
-  width = 18,
-  height = 14,
+  width = 14,
+  height = 12,
   units = c("cm"),
   dpi = 300,
   limitsize = TRUE,
@@ -304,21 +314,23 @@ ggsave(
 #### Example 3: Using a different level of aggregation and a different moving window to predict positive affect
 
 ```{r include=FALSE}
+# set seed for reproducibility
 set.seed(12361488)
+
+# load required packages
 library(caret)
 library(forcats)
 
-#Calculated with the script: ParallelComputingML.R
+# read in the results of the machine learning models
+OverallResults_1h <- read.csv("Results/OverallResults_1h.csv")
+OverallResults_3h <- read.csv("Results/OverallResults_3h.csv")
+OverallResults_6h <- read.csv("Results/OverallResults_6h.csv")
+OverallResults_9h <- read.csv("Results/OverallResults_9h.csv")
+OverallResults_12h <- read.csv("Results/OverallResults_12h.csv")
+OverallResults_24h <- read.csv("Results/OverallResults_24h.csv")
 
-OverallResults_1h <- read.csv("OverallResults_1h.csv")
-OverallResults_3h <- read.csv("OverallResults_3h.csv")
-OverallResults_6h <- read.csv("OverallResults_6h.csv")
-OverallResults_9h <- read.csv("OverallResults_9h.csv")
-OverallResults_12h <- read.csv("OverallResults_12h.csv")
-OverallResults_24h <- read.csv("OverallResults_24h.csv")
 
-
-#### Calculate Performance Measures ####
+# function to calculate performance measures
 perfromanceCalc <- function(OverallResults){
 counter = 0
 OverallResults <- OverallResults[OverallResults$index >= 43,]
@@ -353,7 +365,7 @@ OverallResultsPerformance_9h <- perfromanceCalc(OverallResults_9h)
 OverallResultsPerformance_12h <- perfromanceCalc(OverallResults_12h)
 OverallResultsPerformance_24h <- perfromanceCalc(OverallResults_24h)
 
-MEAN_OverallResults_6h <- read.csv("OverallResults_MEAN.csv")
+MEAN_OverallResults_6h <- read.csv("Results/OverallResults_MEAN.csv")
 MEAN_OverallResultsPerformance_6h <- perfromanceCalc(MEAN_OverallResults_6h)
 
 plot2 <- ggplot() +

@@ -12,14 +12,15 @@ library("stargazer")
 library("lme4")
 
 
-# This function is used to calculate the correlation for various features for different particpants and levels of aggregation.
+
+# This function is used to calculate the correlation for various features for different participants and levels of aggregation.
 # It was used to create the plots displayed in the supplementary material.
 
 
 calculateCorr_pa <- function(Affect_Passive){ # Affect_Passive is dataset
   
   
-# Create a subset of the dataset that includes the variables we are intrested in
+# Create a subset of the dataset that includes the variables we are interested in
   Affect_Passive_subset <- subset(Affect_Passive, select = c(ParticipantNumber, Date , pa_mean , timescale_beforeESM ,
                                               SOCIAL_min ,
                                               COMMUNICATION_min ,
@@ -51,10 +52,10 @@ calculateCorr_pa <- function(Affect_Passive){ # Affect_Passive is dataset
                                               SMS_received_number  ,                                                
                                               SMS_sent_number  ,                                                    
                                               SMS_UNIQUE_CONTACTS_number ))
-  
+# Add a numeric index for the timescale
  Affect_Passive_subset$timescale_beforeESM_num <- recode(Affect_Passive_subset$timescale_beforeESM, "1h" = 1, "3h" = 3,"6h" = 6,"9h" = 9,"12h" = 12, "24h" = 24 )
   
-# transform the dataset to wide format
+# transform the dataset to wide format, so that each column shows the variable aggregated on a different time scale
   wide_orginal = Affect_Passive_subset %>% 
     gather('SOCIAL_min',
            'COMMUNICATION_min',
@@ -91,6 +92,7 @@ calculateCorr_pa <- function(Affect_Passive){ # Affect_Passive is dataset
     spread(combi, number)
   
 
+  # Add the features that we want to calculate the correlation for
   Features <- c('SOCIAL_min',
                 'COMMUNICATION_min',
                 'APP_USAGE_min',
@@ -131,12 +133,13 @@ counter = 0
   for (i in 1:length(Features)) {
     Feature <- Features[i]
     
+    # loop through different time scales
     for (timescale in unique(Affect_Passive$timescale_beforeESM)) {
       counter = counter + 1
 
-        # Save true correlation once
+        # Create a copy of the feature of interest (otherwise summarize() does not work)
         wide_orginal[, "Passivecopy"] <-
-          wide_orginal[, colnames(wide_orginal) == paste(Feature,"_", timescale, sep = "")]
+          wide_orginal[, colnames(wide_orginal) == paste(Feature,"_", timescale, sep = "")] # (e.g., APP_USAGE_min_12h)
         
         CorrelationTrue = wide_orginal %>%
           group_by(ParticipantNumber) %>%
@@ -157,7 +160,7 @@ counter = 0
               ))$p.value, 2),
               NA
             ),
-            "Size" = "thin"
+            "Size" = "thin" # thin for individual correlations
           )
         
         CorrelationTrue$ParticipantNumber <-
@@ -184,7 +187,7 @@ counter = 0
                 sep = ""
               )
             ))$p.value, 2),
-            "Size" = "thick"
+            "Size" = "thick" #thick for overall correlation
           )
         
         

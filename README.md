@@ -33,7 +33,7 @@ found here: <https://annalangener.github.io/TimeScaleAnalysis_Example/>.
 
 **Scripts used for the supplementary material:**
 
-1.  Calculation Correlation.R (NOT CHECKED): Was used to calculate the
+1.  Calculation Correlation.R: Was used to calculate the
     correlations for different passive measures and positive affect for
     different participants
 

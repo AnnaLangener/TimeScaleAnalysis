@@ -1,9 +1,3 @@
----
-editor_options: 
-  markdown: 
-    wrap: 72
----
-
 ### Code used for "It's all about timing: Exploring different temporal resolutions for analyzing digital phenotyping data"
 
 Here we provide the code that was used for the paper "It's all about
@@ -15,7 +9,7 @@ found here: <https://annalangener.github.io/TimeScaleAnalysis_Example/>.
 
 This repository contains the following files
 
-[Scripts for data cleaning:]{.underline}
+**Scripts for data cleaning:**
 
 1.  CleaningNew.R: was used to clean the ESM data (based on the raw
     mpath files)
@@ -29,14 +23,14 @@ This repository contains the following files
 
 4.  data_matching.R: Was used to match the ESM and BehappID
 
-[Scripts for data analysis:]{.underline}
+**Scripts for data analysis:**
 
 1.  TimeScalePaper.Rmd: Was used for the main analysis of the paper
 
 2.  ParallelComputingML.R: Was used to get the results for Example 4
     (prediction model)
 
-Scripts used for the supplementary material:
+**Scripts used for the supplementary material:**
 
 1.  Calculation Correlation.R (NOT CHECKED): Was used to calculate the
     correlations for different passive measures and positive affect for

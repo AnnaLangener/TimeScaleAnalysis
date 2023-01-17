@@ -7,7 +7,8 @@ phenotyping data".
 An example data set and code that is written completely in R can be
 found here: <https://annalangener.github.io/TimeScaleAnalysis_Example/>.
 
-This repository contains the following files
+
+### This repository contains the following files
 
 **Scripts for data cleaning:**
 

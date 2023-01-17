@@ -19,18 +19,14 @@ library("dotwhisker")
 library("stargazer")
 library("lme4")
 
-
-###### Scripts used ###########
-# 0. Python script (Match with ESM data.ipynb)
-# 1. data_matching.R
-# 2. Calculation Correlation.R
-# 3. ParallelComputingML.R
-
-###### Load dataframes #########
-################################
+###### Load the different dataframes #########
+##############################################
 
 ####### Affect data #######
-#### Time interval used to label data as missing
+# We load different data frames because we used different time intervals to label data as missing
+# Here a sensor is labeled as missing if the sensor itself is not present
+# We remove the morning questionnaires in each dataset
+
 #24h missing
 Affect_Passive <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_2709_24missing.csv")
 Affect_Passive <- Affect_Passive[Affect_Passive$questionListName != "Morning assessment 1" & Affect_Passive$questionListName != "Morning Assessment",]
@@ -43,22 +39,21 @@ Affect_Passive_12m <- Affect_Passive_12m[Affect_Passive_12m$questionListName != 
 Affect_Passive_18m <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_2709_18missing.csv")
 Affect_Passive_18m <- Affect_Passive_18m[Affect_Passive_18m$questionListName != "Morning assessment 1" & Affect_Passive_18m$questionListName != "Morning Assessment",]
 
-### Label data as missing if any of the following sensors is not present;
-# Apps (whole day without app usage)
-# Location (whole day without GPS coordinates, based on raw GPS)
-# Wifi (whole day without wifi data)
-# Bluetooth (whole day without Bluetooth data)
+### Next we use more stringent criterias to labes missing data. Thus, we label data as missing if any of the following sensors is not present; Apps (whole day without app usage), Location (whole day without GPS coordinates, based on raw GPS), Wifi (whole day without wifi data), Bluetooth (whole day without Bluetooth data)
 
+# We copy our previous created datasets
 Affect_Passive_allsensor_NA <- Affect_Passive
 Affect_Passive_allsensor_NA_12m <- Affect_Passive_12m
 Affect_Passive_allsensor_NA_18m <- Affect_Passive_18m
 
+# Now we label data as missing if our selected sensors are not present (we do this for different time windows that have been used to label data as misisng)
 Affect_Passive_allsensor_NA[is.na(Affect_Passive$APP_USAGE_min) | is.na(Affect_Passive$TIME_STATIONARY_min) | is.na(Affect_Passive$TOTAL_MACHASHES_number) | is.na(Affect_Passive$BLUETOOTH_TOTAL_MACHASHES_number),!colnames(Affect_Passive_allsensor_NA) %in% c("ParticipantNumber","Date", "pa_mean", "na_mean", "timescale_beforeESM")] <- NA
 
 Affect_Passive_allsensor_NA_12m[is.na(Affect_Passive_12m$APP_USAGE_min) | is.na(Affect_Passive_12m$TIME_STATIONARY_min) | is.na(Affect_Passive_12m$TOTAL_MACHASHES_number) | is.na(Affect_Passive_12m$BLUETOOTH_TOTAL_MACHASHES_number),!colnames(Affect_Passive_allsensor_NA_12m) %in% c("ParticipantNumber","Date", "pa_mean", "na_mean", "timescale_beforeESM")] <- NA
 
 Affect_Passive_allsensor_NA_18m[is.na(Affect_Passive_18m$APP_USAGE_min) | is.na(Affect_Passive_18m$TIME_STATIONARY_min) | is.na(Affect_Passive_18m$TOTAL_MACHASHES_number) | is.na(Affect_Passive_18m$BLUETOOTH_TOTAL_MACHASHES_number),!colnames(Affect_Passive_allsensor_NA_18m) %in% c("ParticipantNumber","Date", "pa_mean", "na_mean", "timescale_beforeESM")] <- NA
 ```
+
 
 ### Temporal resolution while aggregating the data
 #### Example 1.1: Descriptive Figures
@@ -108,13 +103,15 @@ ggsave(
 ####### Calling #######
 #######################
 
-#### Add percentages for annotation
+# Add percentages of minutes of calling equals zero for annotation
 dat_text <- data.frame(label = c(mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "1h" ,"CALL_TOTAL_min"]),mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "3h" ,"CALL_TOTAL_min"]),mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "6h" ,"CALL_TOTAL_min"]), mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "9h" ,"CALL_TOTAL_min"]), mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "12h" ,"CALL_TOTAL_min"]), mean(!Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130) & Affect_Passive$timescale_beforeESM == "24h" ,"CALL_TOTAL_min"])), timescale_beforeESM = c("1h","3h","6h","9h","12h", "24h"))
 dat_text$label <- paste(round(dat_text$label*100),"%", sep = "")
 
 dat_text$timescale_beforeESM <- factor(dat_text$timescale_beforeESM, ordered = TRUE, 
                                 levels = c("1h","3h","6h","9h","12h", "24h"))
 
+
+# create a plot of the calling data for participant 117130
 plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),] %>%  ggplot(., aes( x = 1, y=CALL_TOTAL_min/timescale_beforeESM_num/60, fill = timescale_beforeESM, color = timescale_beforeESM)) + 
   geom_flat_violin(alpha = 0.5, position = position_nudge(x = .3, y = 0), width = 0.6) +
   geom_point(position = position_jitter(seed = 1, width = 0.15, height = 0)) +
@@ -132,6 +129,7 @@ plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),] %>%  gg
   scale_fill_manual(breaks = c("1h","3h","6h","9h","12h", "24h"),
                         values=c("#440154", "#443983", "#31688e","#21918c","#35b779","#90d743"))
 
+# save the plot as a jpg file
 ggsave(
   "plot_117130_simple.jpg",
   plot = plot2,
@@ -141,10 +139,9 @@ ggsave(
   dpi = 300,
   limitsize = TRUE,
   bg = NULL)
-
 ```
 
-Calculate mean value & standard deviation
+Calculate the mean value & standard deviation
 ```{r include=FALSE}
 # this code is to calculate the mean and sd of the number of minutes spent at home per day
 sum_stat_Home = Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),] %>% group_by(timescale_beforeESM) %>% summarise(mean = mean(Cluster_HOME_min/timescale_beforeESM_num/60, na.rm = TRUE), sd = sd(Cluster_HOME_min/timescale_beforeESM_num/60, na.rm = TRUE))
@@ -157,30 +154,6 @@ sum_stat_Call = Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),]
 
 
 #### Example 1.2: Correlation Analysis
-
-```{r include=FALSE}
-#Here we calculate the different Correlations
-source("Calculation Correlation.R")
-
-# Missing values labeled single sensor specific
-CorrelationSampleTrue <- calculateCorr_pa(Affect_Passive)
-CorrelationSampleTrue_18 <- calculateCorr_pa(Affect_Passive_18m)
-CorrelationSampleTrue_12 <- calculateCorr_pa(Affect_Passive_12m)
-
-# If one sensor is missing, all are missing
-CorrelationSampleTrue_allNA <- calculateCorr_pa(Affect_Passive_allsensor_NA)
-CorrelationSampleTrue_allNA_18 <- calculateCorr_pa(Affect_Passive_allsensor_NA_18m)
-CorrelationSampleTrue_allNA_12 <- calculateCorr_pa(Affect_Passive_allsensor_NA_12m)
-
-```
-
-```{r include=FALSE}
-### Correlation value
-CorrelationSampleTrue[CorrelationSampleTrue$ParticipantNumber == 117119 & CorrelationSampleTrue$Feature == "Cluster_HOME_min",]
-
-CorrelationSampleTrue[CorrelationSampleTrue$ParticipantNumber == 117130 & CorrelationSampleTrue$Feature == "CALL_TOTAL_min",] #Sensor specific?/ No exclusion
-```
-
 ```{r include=FALSE}
 ### Calculate Sample size (sample size is the same for all measurements)
 P117119 <- colSums(!is.na(Affect_Passive[Affect_Passive$ParticipantNumber == 117119 & Affect_Passive$timescale_beforeESM == "24h",]))
@@ -225,41 +198,44 @@ ggsave("plot_phone_scatter.jpg",plot = Phone_scatter, width = 26, height =8,unit
 ### Missing Data
 #### Example 2: Using different missing data handling strategies to calculate the Correlation between Smartphone Measures and Affect
 ```{r include=FALSE}
-
 ### Function to calculate missing data ###
 calculate_missingdata <- function(Affect_Passive){
-Affect_Passive_subset_explore <- subset(Affect_Passive,
-                                  select = c(ParticipantNumber, Date , na_mean , pa_mean , timescale_beforeESM,
-                                              APP_USAGE_min ,
-                                              TIME_STATIONARY_min ,
-                                              TOTAL_MACHASHES_number ,
-                                              BLUETOOTH_TOTAL_MACHASHES_number ,
-                                              LIGHT_LUX_mean , 
-                                              SCREEN_onLocked_number,
-                                             CALL_TOTAL_min))
-
-
-P117119 <- colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117119 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))
-
-P117130 <- colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117130 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))
-
-Overall <- colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))
-               
-MissingValues <- cbind(P117119,P117130,Overall)
-
-P117119_p <- round(colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117119 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))/nrow(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117119 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]),2)
-
-P117130_p <- round(colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117130 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))/nrow(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117130 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]),2)
-
-Overall_p <- round(colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))/nrow(Affect_Passive_subset_explore[Affect_Passive_subset_explore$timescale_beforeESM == "9h",]),2)
-
-MissingValues <- data.frame(cbind(MissingValues, P117119_p,P117130_p,Overall_p))
-MissingValues$index <- rownames(MissingValues)
-
-return(MissingValues)
+  
+  # Here we select the sensors that we are intrested in
+  Affect_Passive_subset_explore <- subset(Affect_Passive,
+                                    select = c(ParticipantNumber, Date , na_mean , pa_mean , timescale_beforeESM,
+                                                APP_USAGE_min ,
+                                                TIME_STATIONARY_min ,
+                                                TOTAL_MACHASHES_number ,
+                                                BLUETOOTH_TOTAL_MACHASHES_number ,
+                                                LIGHT_LUX_mean , 
+                                                SCREEN_onLocked_number,
+                                               CALL_TOTAL_min))
+  
+  
+  P117119 <- colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117119 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",])) # The level of aggregation does not matter for labeling missing data
+  
+  P117130 <- colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117130 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",])) 
+  
+  Overall <- colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))
+                 
+  MissingValues <- cbind(P117119,P117130,Overall)
+  
+  
+  # Here we calculate the percentages
+  P117119_p <- round(colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117119 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))/nrow(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117119 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]),2)
+  
+  P117130_p <- round(colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117130 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))/nrow(Affect_Passive_subset_explore[Affect_Passive_subset_explore$ParticipantNumber == 117130 & Affect_Passive_subset_explore$timescale_beforeESM == "9h",]),2)
+  
+  Overall_p <- round(colSums(is.na(Affect_Passive_subset_explore[Affect_Passive_subset_explore$timescale_beforeESM == "9h",]))/nrow(Affect_Passive_subset_explore[Affect_Passive_subset_explore$timescale_beforeESM == "9h",]),2)
+  
+  MissingValues <- data.frame(cbind(MissingValues, P117119_p,P117130_p,Overall_p))
+  MissingValues$index <- rownames(MissingValues)
+  
+  return(MissingValues)
 }
 
-### Calculate missing data
+### Calculate missing data for our two participants based on the strategy chosen to label missing values.
 
 missing1 <- calculate_missingdata(Affect_Passive)
 missing1 <- data.frame(missing1, cond = c(rep("Sensor Specific")), missing =  c(rep("Threshold: 24h")))
@@ -279,6 +255,7 @@ missing5 <- data.frame(missing5, cond = c(rep("Sensor Specific")), missing =  c(
 missing6 <- calculate_missingdata(Affect_Passive_allsensor_NA_12m)
 missing6 <- data.frame(missing6, cond = c(rep("Non Sensor Specific")), missing =  c(rep("Threshold: 12h")))
 
+# Create a dataframe to plot the missing data
 missing_plotdata <- rbind(missing1,missing2,missing3,missing4,missing5,missing6)
 
 ```
@@ -322,44 +299,48 @@ library(caret)
 library(forcats)
 
 # read in the results of the machine learning models (for the supplementary material read the results from participant 117121)
-OverallResults_1h <- read.csv("Results/OverallResults_1h.csv")
-OverallResults_3h <- read.csv("Results/OverallResults_3h.csv")
-OverallResults_6h <- read.csv("Results/OverallResults_6h.csv")
-OverallResults_9h <- read.csv("Results/OverallResults_9h.csv")
-OverallResults_12h <- read.csv("Results/OverallResults_12h.csv")
-OverallResults_24h <- read.csv("Results/OverallResults_24h.csv")
-MEAN_OverallResults <- read.csv("Results/OverallResults_MEAN.csv")
-
-
+OverallResults_1h <- read.csv("Results/OverallResults_1h_117134.csv")
+OverallResults_3h <- read.csv("Results/OverallResults_3h_117134.csv")
+OverallResults_6h <- read.csv("Results/OverallResults_6h_117134.csv")
+OverallResults_9h <- read.csv("Results/OverallResults_9h_117134.csv")
+OverallResults_12h <- read.csv("Results/OverallResults_12h_117134.csv")
+OverallResults_24h <- read.csv("Results/OverallResults_24h_117134.csv")
+MEAN_OverallResults <- read.csv("Results/OverallResults_MEAN_117134.csv")
 
 # function to calculate performance measures
 perfromanceCalc <- function(OverallResults){
-counter = 0
-OverallResults <- OverallResults[OverallResults$index >= 43,]
-for(i in unique(OverallResults$w)){
-counter = counter + 1
-results <- OverallResults[OverallResults$w == i,]
+  
+  counter = 0
+  OverallResults <- OverallResults[OverallResults$index >= 43,] # make test set the same length for all moving window sizes
+  
+  
+  for(i in unique(OverallResults$w)){ # calculate prediction accuracy for each moving window (w)
 
-cor = cor.test(results$pred,results$true)$estimate
-cor.int_1 = cor.test(results$pred,results$true)$conf.int[1]
-cor.int_2 = cor.test(results$pred,results$true)$conf.int[2]
-rss <- sum((results$pred - results$true) ^ 2)  ## residual sum of squares
-tss <- sum((results$true - mean(results$true)) ^ 2)  ## total sum of squares
-rsq <- 1 - rss/tss
-RMSE <- RMSE(results$pred,results$true)
+  counter = counter + 1
+  results <- OverallResults[OverallResults$w == i,] # loop through different moving windows
+  
+  cor = cor.test(results$pred,results$true)$estimate # calculate/save the correlation
+  cor.int_1 = cor.test(results$pred,results$true)$conf.int[1] # save lower confidence interval
+  cor.int_2 = cor.test(results$pred,results$true)$conf.int[2] # save upper confidence interval
+  rss <- sum((results$pred - results$true) ^ 2)  # residual sum of squares
+  tss <- sum((results$true - mean(results$true)) ^ 2)  # total sum of squares
+  rsq <- 1 - rss/tss
+  RMSE <- RMSE(results$pred,results$true)
+  
+  if(counter == 1){
+  resultsPerformance <- cbind(i,cor,cor.int_1,cor.int_2,rsq,RMSE)
+  OverallResultsPerformance <- resultsPerformance
+  }else{
+  resultsPerformance <- cbind(i,cor,cor.int_1,cor.int_2,rsq,RMSE)
+  OverallResultsPerformance <- rbind(OverallResultsPerformance, resultsPerformance)
+  }
+  OverallResultsPerformance <- as.data.frame(OverallResultsPerformance)
+  }
+  return(OverallResultsPerformance)
+}
 
-if(counter == 1){
-resultsPerformance <- cbind(i,cor,cor.int_1,cor.int_2,rsq,RMSE)
-OverallResultsPerformance <- resultsPerformance
-}else{
-resultsPerformance <- cbind(i,cor,cor.int_1,cor.int_2,rsq,RMSE)
-OverallResultsPerformance <- rbind(OverallResultsPerformance, resultsPerformance)
-}
-OverallResultsPerformance <- as.data.frame(OverallResultsPerformance)
-}
-return(OverallResultsPerformance)
-}
 
+# Calculate performance for different levels of aggregation
 OverallResultsPerformance_1h <- perfromanceCalc(OverallResults_1h)
 OverallResultsPerformance_3h <- perfromanceCalc(OverallResults_3h)
 OverallResultsPerformance_6h <- perfromanceCalc(OverallResults_6h)
@@ -367,8 +348,10 @@ OverallResultsPerformance_9h <- perfromanceCalc(OverallResults_9h)
 OverallResultsPerformance_12h <- perfromanceCalc(OverallResults_12h)
 OverallResultsPerformance_24h <- perfromanceCalc(OverallResults_24h)
 
+# Calculate the performance for the mean as comparison
 MEAN_OverallResultsPerformance <- perfromanceCalc(MEAN_OverallResults)
 
+# Plot the results
 plot2 <- ggplot() +
    geom_line(aes(y = OverallResultsPerformance_24h$rsq, x = OverallResultsPerformance_24h$i, color = "24h")) +
   geom_line(aes(y = OverallResultsPerformance_12h$rsq, x = OverallResultsPerformance_12h$i, color = "12h")) +
@@ -378,7 +361,7 @@ plot2 <- ggplot() +
      geom_line(aes(y = OverallResultsPerformance_1h$rsq, x = OverallResultsPerformance_1h$i, color = "1h")) +
       geom_line(aes(y = MEAN_OverallResultsPerformance$rsq, x = MEAN_OverallResultsPerformance$i, color = "rolling mean"), size = 1.3) +
   theme_minimal() +
-  xlab("Number of observations used for building the prediction model") +
+  xlab("Moving window size: Number of observations used for building the prediction model") +
   ylab("R-squared") +
  scale_color_viridis(discrete=TRUE,limits = c("24h","12h","9h","6h","3h","1h","rolling mean")) +
   labs(color = "Level of Aggregation")  +
@@ -397,7 +380,7 @@ plot2 <- ggplot() +
 
 
  ggsave(
- "RSquared.jpg",
+ "RSquared_new.jpg",
  plot = plot2,
  width = 23,
  height = 10,
@@ -470,7 +453,7 @@ paste("(R-Squared = ",round(OverallResultsPerformance_24h$rsq[37],2),")", sep = 
 ### Supplementary Material - Other Sensors and Participants
 ```{r echo=FALSE}
 source("Calculation Correlation.R")
-#CorrelationSampleTrue <- calculateCorr_pa(Affect_Passive)
+CorrelationSampleTrue <- calculateCorr_pa(Affect_Passive)
 
 Variables <- unique(CorrelationSampleTrue$Feature)
 

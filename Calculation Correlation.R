@@ -11,8 +11,15 @@ library("dotwhisker")
 library("stargazer")
 library("lme4")
 
+
+# This function is used to calculate the correlation for various features for different particpants and levels of aggregation.
+# It was used to create the plots displayed in the supplementary material.
+
+
 calculateCorr_pa <- function(Affect_Passive){ # Affect_Passive is dataset
   
+  
+# Create a subset of the dataset that includes the variables we are intrested in
   Affect_Passive_subset <- subset(Affect_Passive, select = c(ParticipantNumber, Date , pa_mean , timescale_beforeESM ,
                                               SOCIAL_min ,
                                               COMMUNICATION_min ,
@@ -47,6 +54,7 @@ calculateCorr_pa <- function(Affect_Passive){ # Affect_Passive is dataset
   
  Affect_Passive_subset$timescale_beforeESM_num <- recode(Affect_Passive_subset$timescale_beforeESM, "1h" = 1, "3h" = 3,"6h" = 6,"9h" = 9,"12h" = 12, "24h" = 24 )
   
+# transform the dataset to wide format
   wide_orginal = Affect_Passive_subset %>% 
     gather('SOCIAL_min',
            'COMMUNICATION_min',
@@ -114,13 +122,12 @@ calculateCorr_pa <- function(Affect_Passive){ # Affect_Passive is dataset
                 "SMS_sent_number" ,                                                    
                 "SMS_UNIQUE_CONTACTS_number")
   
-  
-
 
 ###### POSITIVE AFFECT
 
 counter = 0
 
+# loop through all features on different timescales and calculate the correlation
   for (i in 1:length(Features)) {
     Feature <- Features[i]
     
@@ -179,6 +186,8 @@ counter = 0
             ))$p.value, 2),
             "Size" = "thick"
           )
+        
+        
         if (counter == 1) {
           CorrelationSampleTrue = rbind(CorrelationTrue, OverallCorrelationTrue)
         } else{
@@ -206,7 +215,7 @@ CorrelationSampleTrue$timescale_beforeESM_num <- recode(CorrelationSampleTrue$ti
 
 CorrelationSampleTrue$timescale_beforeESM <- ordered(CorrelationSampleTrue$timescale_beforeESM,levels = c("1h","3h","6h","9h","12h","24h"))
 
-##save
+# return the results
 
 return(CorrelationSampleTrue)
 

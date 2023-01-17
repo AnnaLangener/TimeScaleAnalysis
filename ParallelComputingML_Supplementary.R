@@ -1,18 +1,18 @@
 
-################## Prediction Model  ##################
-# Prediction Model for Participant without Missing Data
+##################### Prediction Model  ####################
+# Prediction Model for Participant in Supplementary Material
 
-
-### Load Packages
 library('dplyr')
 library("tidyr")
 library("caret")
 library("doParallel")
 
-
-Affect_Passive <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_2709_24missing.csv") # Data is labelled as missing if not present for 24h
+Affect_Passive <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_2709_24missing.csv") #Data is labelled as missing if not present for 24h
 Affect_Passive <- Affect_Passive[Affect_Passive$questionListName != "Morning assessment 1" & Affect_Passive$questionListName != "Morning Assessment",]
 
+
+# 117121: Participant used in supplementary material
+PNumbers <- c(117134, 117113, 117114, 117119, 117121, 117129, 117130, 117131, 117135, 117137)
 timescale_beforeESM <- c("1h","3h", "6h", "9h", "12h", "24h") # Level of aggregation
 
 
@@ -30,29 +30,24 @@ for(n in timescale_beforeESM){
   
   OverallResults <- list() #create a list to store the results
   
-  Participant1 = Affect_Passive[Affect_Passive["ParticipantNumber"] == 117134 & Affect_Passive["timescale_beforeESM"] == n,  ]
+  Participant1 = Affect_Passive[Affect_Passive["ParticipantNumber"] == PNumbers[5] & Affect_Passive["timescale_beforeESM"] == n,  ]
   
-  # Here we select which features we use
-  formula2 <- as.formula(paste("pa_mean ~  SOCIAL_min +
-               COMMUNICATION_min +
-               com.whatsapp_min +
-               APP_USAGE_min +
-               APPS_OPENED_number +
-               Cluster_HOME_min +
-               Cluster_1_min +
-               Cluster_2_min +
-               Cluster_3_min +
-               Cluster_4_min +
-               Cluster_5_min +
-               TIME_STATIONARY_min +
-               TOTAL_MACHASHES_number +
-               UNIQUE_MACHASHES_number +
-               BLUETOOTH_TOTAL_MACHASHES_number +
-               BLUETOOTH_UNIQUE_MACHASHES_number +
-               LIGHT_LUX_mean +                                                      
-               SCREEN_onLocked_number +                                             
-               SCREEN_onUnlocked_number"))
   
+  ### 117121, we remove bluetooth because otherwise only 8 observations are left
+  Features <- c("SOCIAL_min","COMMUNICATION_min","com.whatsapp_min","APP_USAGE_min","APPS_OPENED_number","Cluster_HOME_min","Cluster_1_min","Cluster_2_min",
+                "Cluster_3_min","Cluster_4_min","Cluster_5_min","TIME_STATIONARY_min","TOTAL_MACHASHES_number","UNIQUE_MACHASHES_number",
+                "LIGHT_LUX_mean","SCREEN_onLocked_number","SCREEN_onUnlocked_number")
+  
+  
+  ### remove features that are not present
+  pa_mean <- Participant1$pa_mean
+  Participant1 <- Participant1[,which(colnames(Participant1) %in% Features)] # We remove all other variables
+  Participant1 <- Participant1[,colSums(Participant1, na.rm = TRUE) != 0] # We remove all variables that are 0 over the study period
+  Participant1$pa_mean <- pa_mean
+  Participant1 <- Participant1[rowSums(Participant1[,which(colnames(Participant1) %in% Features)], na.rm = TRUE) != 0,] # We remove all observations that only include missing values
+  Participant1 <- na.omit(Participant1)
+  formula2 <- as.formula(paste("pa_mean ~", paste(colnames(Participant1[,colnames(Participant1) != "pa_mean"]), collapse = "+")))
+
   
   # https://topepo.github.io/caret/data-splitting.html#data-splitting-for-time-series
   
@@ -75,7 +70,7 @@ for(n in timescale_beforeESM){
     true <- rep(NA,length(trainSlices))
     w <- rep(NA,length(trainSlices))
     index <- rep(NA,length(testSlices))
-
+    
     
     for(i in 1:length(trainSlices)){
       
@@ -89,11 +84,11 @@ for(n in timescale_beforeESM){
       index[i] <- as.numeric(testSlices[[i]])
       
     }
-      end_time2 <- Sys.time()
-      results <- cbind(pred,true,w,index)
-      OverallResults[[k-5]] <- results # store results in our empty list
-      print(paste("Completed Time Window:",w[1],", Running time:", paste(end_time2 - start_time2)))
-
+    end_time2 <- Sys.time()
+    results <- cbind(pred,true,w,index)
+    OverallResults[[k-5]] <- results # store results in our empty list
+    print(paste("Completed Time Window:",w[1],", Running time:", paste(end_time2 - start_time2)))
+    
   }
   
   end_time <- Sys.time()
@@ -101,10 +96,10 @@ for(n in timescale_beforeESM){
   
   OverallResults <- as.data.frame(do.call("rbind",OverallResults)) #Combine lists into one dataframe
   
-
+  
   # Save the results
   
-  string <- paste("OverallResults_", n, ".csv", sep = "")
+  string <- paste("OverallResults_", n,"_tes",PNumbers[5], ".csv", sep = "")
   print(string)
   write.csv(OverallResults,string)
 }
@@ -116,7 +111,10 @@ stopCluster(cl)
 
 # Here the level of aggregation is not important (because we only use positive affect). Thus, we could have also used a different level than 6h
 
-Participant1 = Affect_Passive[Affect_Passive["ParticipantNumber"] == 117134 & Affect_Passive["timescale_beforeESM"] == "1h",  ] 
+PNumbers <- c(117134, 117113, 117114, 117119, 117121, 117129, 117130, 117131, 117135, 117137)
+
+PNumber <- PNumbers[5]
+Participant1 = Affect_Passive[Affect_Passive["ParticipantNumber"] == PNumber & Affect_Passive["timescale_beforeESM"] == "1h",  ] 
 
 OverallResults <- list() #create a list to store the results
 
@@ -151,7 +149,7 @@ for(k in c(6:42)){
 OverallResults <- as.data.frame(do.call("rbind",OverallResults)) #Combine lists into one dataframe
 
 
-string <- paste("OverallResults_MEAN", ".csv", sep = "")
+string <- paste("OverallResults_MEAN_",PNumber, ".csv", sep = "")
 
 write.csv(OverallResults,string)
 

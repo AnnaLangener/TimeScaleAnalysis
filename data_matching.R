@@ -7,10 +7,12 @@ BEHAPP_ID = c(117113,117114,117119,117121,117130,117129,117131,117134,117135,117
 
 ###### Load dataframes #########
 ################################
-#passive_match <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/Data_PassiveMeasure2204.csv") # created with ESM match function
-passive_match <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/Data_PassiveMeasure2709_24hmissing.csv") # created with ESM match function
 
-ESM_data <-  read.csv('/Users/annalangener/Nextcloud/BEHAPP data/SocialContext.csv') # Based on dataCleaned but with BEHAPP ID
+passive_match <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/Data_PassiveMeasure2709_24hmissing.csv") # created with "Match with ESM data.py" (we did the same for the other two datasets)
+#passive_match <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/Data_PassiveMeasure2709_18hmissing.csv") # created with "Match with ESM data.py" (we did the same for the other two datasets)
+#passive_match <- read.csv("/Users/annalangener/Nextcloud/BEHAPP data/Data_PassiveMeasure2709_12hmissing.csv") # created with "Match with ESM data.py" (we did the same for the other two datasets)
+
+ESM_data <-  read.csv('/Users/annalangener/Nextcloud/BEHAPP data/SocialContext.csv') # CleaningNew.R was used to clean the ESM data, SocialContext_BehappID.py was used to add the Behapp ID
 
 ####### Merge dataframes/ select variables #######
 ##################################################
@@ -46,13 +48,9 @@ Affect_Passive <- merge(ESM_affect,passive_match, by = c("ParticipantNumber","Da
 Affect_Passive_subset = Affect_Passive %>% select(c("Date", "pa_mean","na_mean","questionListName", "ParticipantNumber","timescale_beforeESM",'SOCIAL_min','COMMUNICATION_min','APP_USAGE_min','APPS_OPENED_number','Cluster_HOME_min','UNIQUE_STAYPOINTS_number','TIME_STATIONARY_min','TOTAL_MACHASHES_number','UNIQUE_MACHASHES_number','CALL_TOTAL_min',"BLUETOOTH_TOTAL_MACHASHES_number","BLUETOOTH_UNIQUE_MACHASHES_number", "CALL_TOTAL_min" ))
 Affect_Passive <- Affect_Passive[!duplicated(Affect_Passive_subset),]
 
-#write.csv(Affect_Passive,"/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_220422.csv")
-write.csv(Affect_Passive,"/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_2709_12missing.csv")
+#### Save dataframes
 
-#Affect_Passive <- Affect_Passive[Affect_Passive$timescale_beforeESM == "6h",]
-
-## Save dataframe
-#write.csv(Affect_Passive,"/Users/annalangener/Nextcloud/Shared/Bachelorthesis - Xinyi/FullDataset_6h_2204.csv")
-
-#Affect_Passive = Affect_Passive %>% select(c("Date", "pa_mean","na_mean","questionListName", "ParticipantNumber","timescale_beforeESM",'SOCIAL_min','COMMUNICATION_min','APP_USAGE_min','APPS_OPENED_number','Cluster_HOME_min','UNIQUE_STAYPOINTS_number','TIME_STATIONARY_min','TOTAL_MACHASHES_number','UNIQUE_MACHASHES_number','CALL_TOTAL_min',"BLUETOOTH_TOTAL_MACHASHES_number","BLUETOOTH_UNIQUE_MACHASHES_number", "CALL_TOTAL_min" ))
+write.csv(Affect_Passive,"/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_2709_24missing.csv")
+#write.csv(Affect_Passive,"/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_2709_18missing.csv")
+#write.csv(Affect_Passive,"/Users/annalangener/Nextcloud/BEHAPP data/FullDataset_2709_12missing.csv")
 

@@ -153,3 +153,136 @@ string <- paste("OverallResults_MEAN_",PNumber, ".csv", sep = "")
 
 write.csv(OverallResults,string)
 
+
+###### Plots #######
+####################
+
+library(forcats)
+library('dplyr')
+library('ggplot2')
+library('plotly')
+library("runner")
+library("hrbrthemes")
+library("viridis")
+library("ggpubr")
+library("tidyr")
+library("knitr")
+library("dotwhisker")
+library("stargazer")
+library("lme4")
+
+Pnumber <- 117121
+
+OverallResults_1h <- read.csv(paste("Results/OverallResults_1h_",Pnumber, ".csv",sep = ""))
+OverallResults_3h <- read.csv(paste("Results/OverallResults_3h_",Pnumber, ".csv",sep = ""))
+OverallResults_6h <- read.csv(paste("Results/OverallResults_6h_",Pnumber, ".csv",sep = ""))
+OverallResults_9h <- read.csv(paste("Results/OverallResults_9h_",Pnumber, ".csv",sep = ""))
+OverallResults_12h <- read.csv(paste("Results/OverallResults_12h_",Pnumber, ".csv",sep = ""))
+OverallResults_24h <- read.csv(paste("Results/OverallResults_24h_",Pnumber, ".csv",sep = ""))
+MEAN_OverallResults_6h <- read.csv(paste("Results/OverallResults_MEAN_",Pnumber, ".csv",sep = ""))
+
+
+
+#### Calculate Performance Measures ####
+perfromanceCalc <- function(OverallResults){
+  counter = 0
+  OverallResults <- OverallResults[OverallResults$index >= 43,]
+  for(i in unique(OverallResults$w)){
+    counter = counter + 1
+    results <- OverallResults[OverallResults$w == i,]
+    
+    cor = cor.test(results$pred,results$true)$estimate
+    cor.int_1 = cor.test(results$pred,results$true)$conf.int[1]
+    cor.int_2 = cor.test(results$pred,results$true)$conf.int[2]
+    rss <- sum((results$pred - results$true) ^ 2)  ## residual sum of squares
+    tss <- sum((results$true - mean(results$true)) ^ 2)  ## total sum of squares
+    rsq <- 1 - rss/tss
+    RMSE <- RMSE(results$pred,results$true)
+    
+    if(counter == 1){
+      resultsPerformance <- cbind(i,cor,cor.int_1,cor.int_2,rsq,RMSE)
+      OverallResultsPerformance <- resultsPerformance
+    }else{
+      resultsPerformance <- cbind(i,cor,cor.int_1,cor.int_2,rsq,RMSE)
+      OverallResultsPerformance <- rbind(OverallResultsPerformance, resultsPerformance)
+    }
+    OverallResultsPerformance <- as.data.frame(OverallResultsPerformance)
+  }
+  return(OverallResultsPerformance)
+}
+
+OverallResultsPerformance_1h <- perfromanceCalc(OverallResults_1h)
+OverallResultsPerformance_3h <- perfromanceCalc(OverallResults_3h)
+OverallResultsPerformance_6h <- perfromanceCalc(OverallResults_6h)
+OverallResultsPerformance_9h <- perfromanceCalc(OverallResults_9h)
+OverallResultsPerformance_12h <- perfromanceCalc(OverallResults_12h)
+OverallResultsPerformance_24h <- perfromanceCalc(OverallResults_24h)
+MEAN_OverallResultsPerformance_6h <- perfromanceCalc(MEAN_OverallResults_6h)
+
+plot2 <- ggplot() +
+  geom_line(aes(y = OverallResultsPerformance_24h$rsq, x = OverallResultsPerformance_24h$i, color = "24h")) +
+  geom_line(aes(y = OverallResultsPerformance_12h$rsq, x = OverallResultsPerformance_12h$i, color = "12h")) +
+  geom_line(aes(y = OverallResultsPerformance_9h$rsq, x = OverallResultsPerformance_9h$i, color = "9h")) +
+  geom_line(aes(y = OverallResultsPerformance_6h$rsq, x = OverallResultsPerformance_6h$i, color = "6h")) +
+  geom_line(aes(y = OverallResultsPerformance_3h$rsq, x = OverallResultsPerformance_3h$i, color = "3h")) +
+  geom_line(aes(y = OverallResultsPerformance_1h$rsq, x = OverallResultsPerformance_1h$i, color = "1h")) +
+  geom_line(aes(y = MEAN_OverallResultsPerformance_6h$rsq, x = MEAN_OverallResultsPerformance_6h$i, color = "rolling mean"), size = 1.3) +
+  theme_minimal() +
+  xlab("Moving Window: Number of observations used for building the prediction model") +
+  ylab("R-squared") +
+  scale_color_viridis(discrete=TRUE,limits = c("24h","12h","9h","6h","3h","1h","rolling mean")) +
+  labs(color = "Level of Aggregation") +
+  geom_hline(yintercept=0, linetype="dashed", 
+             color = "black", size=0.5)
+
+
+ggsave(
+  "RSquared_sup.jpg",
+  plot = plot2,
+  width = 23,
+  height = 10,
+  units = c("cm"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = NULL)
+
+
+#### Level of Aggregation
+
+#Correlation 1h
+max <- which(OverallResultsPerformance_1h$rsq == max(OverallResultsPerformance_1h$rsq))
+min <- which(OverallResultsPerformance_1h$rsq == min(OverallResultsPerformance_1h$rsq))
+
+paste("(m = ",round(mean(OverallResultsPerformance_1h$rsq),2), ", max = ",round(OverallResultsPerformance_1h$rsq[max],2),", min = ",round(OverallResultsPerformance_1h$rsq[min],2),")", sep = "")
+
+#Correlation 3h
+max <- which(OverallResultsPerformance_3h$rsq == max(OverallResultsPerformance_3h$rsq))
+min <- which(OverallResultsPerformance_3h$rsq == min(OverallResultsPerformance_3h$rsq))
+
+paste("(m = ",round(mean(OverallResultsPerformance_3h$rsq),2), ", max = ",round(OverallResultsPerformance_3h$rsq[max],2),", min = ",round(OverallResultsPerformance_3h$rsq[min],2),")", sep = "")
+
+#Correlation 6h
+max <- which(OverallResultsPerformance_6h$cor == max(OverallResultsPerformance_6h$cor))
+min <- which(OverallResultsPerformance_6h$cor == min(OverallResultsPerformance_6h$cor))
+
+paste("(m = ",round(mean(OverallResultsPerformance_6h$rsq),2), ", max = ",round(OverallResultsPerformance_6h$rsq[max],2),", min = ",round(OverallResultsPerformance_6h$rsq[min],2),")", sep = "")
+
+#Correlation 9h
+max <- which(OverallResultsPerformance_9h$rsq == max(OverallResultsPerformance_9h$rsq))
+min <- which(OverallResultsPerformance_9h$rsq == min(OverallResultsPerformance_9h$rsq))
+
+paste("(m = ",round(mean(OverallResultsPerformance_9h$rsq),2), ", max = ",round(OverallResultsPerformance_9h$rsq[max],2),", min = ",round(OverallResultsPerformance_9h$rsq[min],2),")", sep = "")
+
+#Correlation 12h
+max <- which(OverallResultsPerformance_12h$rsq == max(OverallResultsPerformance_12h$rsq))
+min <- which(OverallResultsPerformance_12h$rsq == min(OverallResultsPerformance_12h$rsq))
+
+
+paste("(m = ",round(mean(OverallResultsPerformance_12h$rsq),2), ", max = ",round(OverallResultsPerformance_12h$rsq[max],2),", min = ",round(OverallResultsPerformance_12h$rsq[min],2),")", sep = "")
+
+#Correlation 24h
+max <- which(OverallResultsPerformance_24h$rsq == max(OverallResultsPerformance_24h$rsq))
+min <- which(OverallResultsPerformance_24h$rsq == min(OverallResultsPerformance_24h$rsq))
+
+paste("(m = ",round(mean(OverallResultsPerformance_24h$rsq),2), ", max = ",round(OverallResultsPerformance_24h$rsq[max],2),", min = ",round(OverallResultsPerformance_24h$rsq[min],2),")", sep = "")
+

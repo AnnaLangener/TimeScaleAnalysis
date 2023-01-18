@@ -148,8 +148,6 @@ sum_stat_Home = Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),]
 
 # this code is to calculate the mean and sd of the number of calls per day
 sum_stat_Call = Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),] %>% group_by(timescale_beforeESM) %>% summarise(mean = mean(CALL_TOTAL_min/timescale_beforeESM_num, na.rm = TRUE), sd = sd(CALL_TOTAL_min/timescale_beforeESM_num, na.rm = TRUE))
-
-
 ```
 
 
@@ -291,9 +289,6 @@ ggsave(
 #### Example 3: Using a different level of aggregation and a different moving window to predict positive affect
 
 ```{r include=FALSE}
-# set seed for reproducibility
-set.seed(12361488)
-
 # load required packages
 library(caret)
 library(forcats)

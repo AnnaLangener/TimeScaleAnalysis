@@ -77,10 +77,10 @@ plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),] %>%  gg
   geom_point(position = position_jitter(seed = 1, width = 0.15, height = 0)) +
   theme_minimal() +
   xlab("") + 
-  ylab("") +
+  ylab("Minutes spent at home \n (in percentage)") +
   labs(fill='', color = '') +
   theme(legend.position = "none", axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(), text = element_text(size= 14), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+        axis.ticks.x=element_blank(), text = element_text(size= 12), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
   facet_grid(cols = vars(timescale_beforeESM)) +
   scale_color_manual(breaks = c("1h","3h","6h","9h","12h", "24h"),
                         values=c("#440154", "#443983", "#31688e","#21918c","#35b779","#90d743")) +
@@ -117,10 +117,10 @@ plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),] %>%  gg
   geom_point(position = position_jitter(seed = 1, width = 0.15, height = 0)) +
   theme_minimal() +
   xlab("") + 
-  ylab("") +
+  ylab("Minutes of calling \n (in percentage)") +
   labs(fill='', color = '') +
   theme(legend.position = "none", axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(), text = element_text(size= 14), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+        axis.ticks.x=element_blank(), text = element_text(size= 12), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
   geom_text(data    = dat_text,mapping = aes(x = -Inf, y = -Inf, label = label),x   = 1.47,y   = 0.03) +
 #  geom_curve(data = dat_text, x = 1.45, y = 0.022, xend = 1.40, yend = 0, curvature = .1, arrow = arrow(length = unit(2, "mm"))) +
   facet_grid(cols = vars(timescale_beforeESM)) +

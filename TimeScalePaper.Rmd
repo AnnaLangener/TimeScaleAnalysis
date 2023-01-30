@@ -354,11 +354,11 @@ plot2 <- ggplot() +
     geom_line(aes(y = OverallResultsPerformance_6h$rsq, x = OverallResultsPerformance_6h$i, color = "6h")) +
      geom_line(aes(y = OverallResultsPerformance_3h$rsq, x = OverallResultsPerformance_3h$i, color = "3h")) +
      geom_line(aes(y = OverallResultsPerformance_1h$rsq, x = OverallResultsPerformance_1h$i, color = "1h")) +
-      geom_line(aes(y = MEAN_OverallResultsPerformance$rsq, x = MEAN_OverallResultsPerformance$i, color = "rolling mean"), size = 1.3) +
+      geom_line(aes(y = MEAN_OverallResultsPerformance$rsq, x = MEAN_OverallResultsPerformance$i, color = "rolling mean (no smartphone data)"), size = 1.3) +
   theme_minimal() +
   xlab("Moving window size: Number of observations used for building the prediction model") +
   ylab("R-squared") +
- scale_color_viridis(discrete=TRUE,limits = c("24h","12h","9h","6h","3h","1h","rolling mean")) +
+ scale_color_viridis(discrete=TRUE,limits = c("24h","12h","9h","6h","3h","1h","rolling mean (no smartphone data)")) +
   labs(color = "Level of Aggregation")  +
     # Annotation
   annotate(
@@ -377,8 +377,8 @@ plot2 <- ggplot() +
  ggsave(
  "RSquared_new.jpg",
  plot = plot2,
- width = 23,
- height = 10,
+ width = 24.5,
+ height = 11,
  units = c("cm"),
  dpi = 300,
  limitsize = TRUE,

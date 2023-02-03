@@ -37,12 +37,7 @@ BEHAPPID = ['NA', 117113, 117114, 'NA',117118, 117116, 117117, 117120,
        117122, 117119, 117121, 117123,117127, 117129, 117128, 117130,
        117131, 117140, 117139, 117138, 117136, 117134, 117135, 117137]
 
-mPath = ['AnnaL', 'FlorisWever(114)', 'Daffie (116)', 'Julia(112)',
-       'SługaSzatana (103)', 'luisa(105)', '104-arsi', 'Diana (107)',
-       '111', 'Mira (102)', 'rimsalabim(106)', 'Marlou (113)',
-       'ups (208)', 'N. B. (203)', 'Patri (213)', 'Fin(204)',
-       'Chaela (71857)', 'Aj (201)', 'Xens (214)', '73051nico',
-       'Daria Manea (207)', '212', 'grostudent(216)', 'Matse(209)']
+# mPath = Deleted to keep data anonymous
 
 ESM['BEHAPP_ID'] = ESM['alias'].replace(mPath, BEHAPPID)
 

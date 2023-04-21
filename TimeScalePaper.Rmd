@@ -72,6 +72,16 @@ Affect_Passive$timescale_beforeESM_num <- recode(Affect_Passive$timescale_before
 ####### GPS #######
 ###################
 # create a plot of the GPS data for participant 117119
+plot1 <- ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),],aes(colour = factor(timescale_beforeESM))) +
+  geom_line(aes(y = Cluster_HOME_min/timescale_beforeESM_num/60, x = as.POSIXct(Date))) +
+  scale_x_datetime(date_labels = '%d-%m',breaks='1 weeks') +
+#  theme_minimal() +
+  xlab("") + 
+  ylab("Minutes spent at home \n (in percentage)") +
+  labs(color='') +
+  facet_grid(cols = vars(timescale_beforeESM)) +
+  theme(axis.text.x = element_text(angle = 45),legend.position = "none",panel.background  = element_blank(), panel.grid = element_line(colour = "black"), panel.grid.major = element_line(size = rel(0.1)), panel.grid.minor = element_line(size = rel(0.05)) ) 
+
 plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),] %>%  ggplot(., aes( x = 1, y=Cluster_HOME_min/timescale_beforeESM_num/60, fill = timescale_beforeESM, color = timescale_beforeESM)) + 
   geom_flat_violin(alpha = 0.5, position = position_nudge(x = .3, y = 0), width = 0.6) +
   geom_point(position = position_jitter(seed = 1, width = 0.15, height = 0)) +
@@ -87,12 +97,14 @@ plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117119),] %>%  gg
   scale_fill_manual(breaks = c("1h","3h","6h","9h","12h", "24h"),
                         values=c("#440154", "#443983", "#31688e","#21918c","#35b779","#90d743"))
 
-# save the plot as a jpg file
+plot_117119 <- ggarrange(plot1, plot2, ncol = 1, common.legend = FALSE)
+
+
 ggsave(
-  "plot_117119_simple.jpg",
-  plot = plot2,
+  "plot_117119.png",
+  plot = plot_117119,
   width = 20,
-  height = 6,
+  height = 10,
   units = c("cm"),
   dpi = 300,
   limitsize = TRUE,
@@ -110,6 +122,16 @@ dat_text$label <- paste(round(dat_text$label*100),"%", sep = "")
 dat_text$timescale_beforeESM <- factor(dat_text$timescale_beforeESM, ordered = TRUE, 
                                 levels = c("1h","3h","6h","9h","12h", "24h"))
 
+# Create line plot
+plot1 <- Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),] %>%  ggplot(., aes( x = 1, y=CALL_TOTAL_min/timescale_beforeESM_num/60, fill = timescale_beforeESM, color = timescale_beforeESM)) +
+  geom_line(aes(y = CALL_TOTAL_min/timescale_beforeESM_num/60, x = as.POSIXct(Date))) +
+  scale_x_datetime(date_labels = '%d-%m',breaks='1 weeks') +
+#  theme_minimal() +
+  xlab("") + 
+  ylab("Minutes spent at home \n (in percentage)") +
+  labs(color='') +
+  facet_grid(cols = vars(timescale_beforeESM)) +
+  theme(axis.text.x = element_text(angle = 45),legend.position = "none",panel.background  = element_blank(), panel.grid = element_line(colour = "black"), panel.grid.major = element_line(size = rel(0.1)), panel.grid.minor = element_line(size = rel(0.05)) ) 
 
 # create a plot of the calling data for participant 117130
 plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),] %>%  ggplot(., aes( x = 1, y=CALL_TOTAL_min/timescale_beforeESM_num/60, fill = timescale_beforeESM, color = timescale_beforeESM)) + 
@@ -129,12 +151,16 @@ plot2 <-Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),] %>%  gg
   scale_fill_manual(breaks = c("1h","3h","6h","9h","12h", "24h"),
                         values=c("#440154", "#443983", "#31688e","#21918c","#35b779","#90d743"))
 
-# save the plot as a jpg file
+# save the plot as a png file
+
+plot_117130 <- ggarrange(plot1, plot2, ncol = 1, common.legend = FALSE)
+
+
 ggsave(
-  "plot_117130_simple.jpg",
-  plot = plot2,
+  "plot_117130.png",
+  plot = plot_117130,
   width = 20,
-  height = 6,
+  height = 10,
   units = c("cm"),
   dpi = 300,
   limitsize = TRUE,
@@ -175,7 +201,7 @@ Home_scatter <- ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(11
   xlab("Minutes being at Home")  +
 theme(text = element_text(size= 16), axis.text.x=element_text(hjust = 0.8))
 
-ggsave("plot_home_scatter.jpg",plot = Home_scatter, width = 26, height =8,units = c("cm"),dpi = 300,limitsize = FALSE,bg = NULL)
+ggsave("plot_home_scatter.png",plot = Home_scatter, width = 26, height =8,units = c("cm"),dpi = 300,limitsize = FALSE,bg = NULL)
 
 Phone_scatter <- ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(117130),], aes(x = CALL_TOTAL_min, y = pa_mean )) +
   geom_point(colour = "#440154FF" ) +
@@ -188,7 +214,7 @@ Phone_scatter <- ggplot(Affect_Passive[Affect_Passive$ParticipantNumber %in% c(1
   xlab("Minutes of Calling")  +
 theme(text = element_text(size= 16), axis.text.x=element_text(hjust = 0.8))
 
-ggsave("plot_phone_scatter.jpg",plot = Phone_scatter, width = 26, height =8,units = c("cm"),dpi = 300,limitsize = FALSE,bg = NULL)
+ggsave("plot_phone_scatter.png",plot = Phone_scatter, width = 26, height =8,units = c("cm"),dpi = 300,limitsize = FALSE,bg = NULL)
 
 ```
 
@@ -260,23 +286,65 @@ missing_plotdata <- rbind(missing1,missing2,missing3,missing4,missing5,missing6)
 
 ```{r include=FALSE}
 
-plot_missing_gps <- ggplot(missing_plotdata[missing_plotdata$index == "TIME_STATIONARY_min",], aes(fill=cond, y=P117119_p, x=missing)) + 
+Affect_Passive$Threshold <- "Threshold: 24h"
+Affect_Passive_12m$Threshold <- "Threshold: 12h"
+Affect_Passive_18m$Threshold <- "Threshold: 18h"
+
+Affect_Passive$exclude <- "Only excluded if GPS is missing"
+Affect_Passive_12m$exclude <- "Only excluded if GPS is missing"
+Affect_Passive_18m$exclude <- "Only excluded if GPS is missing"
+
+Affect_Passive_allsensor_NA$Threshold <- "Threshold: 24h"
+Affect_Passive_allsensor_NA_12m$Threshold <- "Threshold: 12h"
+Affect_Passive_allsensor_NA_18m$Threshold <- "Threshold: 18h"
+
+Affect_Passive_allsensor_NA$exclude <- "Excluded based on other measures"
+Affect_Passive_allsensor_NA_12m$exclude <- "Excluded based on other measures"
+Affect_Passive_allsensor_NA_18m$exclude <- "Excluded based on other measures"
+
+Affect_Passive <- Affect_Passive[,!colnames(Affect_Passive) %in% "timescale_beforeESM_num"]
+
+missing_plotdata2 <- rbind(Affect_Passive[Affect_Passive$timescale_beforeESM == "1h" & Affect_Passive$ParticipantNumber == 117119,], Affect_Passive_12m[Affect_Passive_12m$timescale_beforeESM == "1h"& Affect_Passive$ParticipantNumber == 117119,],
+ Affect_Passive_18m[Affect_Passive_12m$timescale_beforeESM == "1h"& Affect_Passive$ParticipantNumber == 117119,],
+ Affect_Passive_allsensor_NA[Affect_Passive_allsensor_NA$timescale_beforeESM == "1h"& Affect_Passive$ParticipantNumber == 117119,],
+ Affect_Passive_allsensor_NA_12m[Affect_Passive_allsensor_NA_12m$timescale_beforeESM == "1h"& Affect_Passive$ParticipantNumber == 117119,],
+ Affect_Passive_allsensor_NA_18m[Affect_Passive_allsensor_NA_18m$timescale_beforeESM == "1h"& Affect_Passive$ParticipantNumber == 117119,])
+
+missing_plotdata2$exclude <- factor(missing_plotdata2$exclude, levels = c("Only excluded if GPS is missing","Excluded based on other measures"))
+
+plot1 <- ggplot(missing_plotdata2,aes(y=Cluster_HOME_min, x=as.POSIXct(Date), color = exclude)) + 
+  geom_line() +
+  facet_wrap(~ as.factor(Threshold), ncol = 1) +
+  scale_color_manual(values = c("#21918c","#440154")) +
+  theme( legend.title=element_blank()) +
+  ylab("Minutes spent at Home") +
+  xlab("Date") +
+  theme(panel.grid.major = element_line(size = 0.15, linetype = 'solid',
+                                colour = "lightgrey"),panel.background = element_rect(fill = "white"),legend.text = element_text(size=10), legend.position = "top",legend.key = element_rect(fill = "white"),strip.background =element_rect(fill="#ededed")) 
+
+plot2 <- ggplot(missing_plotdata[missing_plotdata$index == "TIME_STATIONARY_min",], aes(fill=cond, y=P117119_p, x=missing)) + 
     geom_bar(position="dodge", stat="identity") +
   theme_minimal() +
   scale_fill_manual(values = c("#440154", "#21918c"),breaks=c('Non Sensor Specific','Sensor Specific'),  labels = c("Excluded based on other measures","Only excluded if GPS is missing")) +
+   coord_flip() +
   theme( legend.title=element_blank()) +
   ggtitle("") +
   ylab("Proportions of excluded data") +
-  xlab("") +
-  #coord_cartesian(ylim=c(0,0.5)) +
+  xlab("Threshold") +
   theme(legend.text = element_text(size=10), legend.position = "top") +
-  geom_text(aes(label = paste("n =", round(P117119, 2))),position = position_dodge(0.8), vjust = -0.2)
+  geom_text(aes(label = paste("n =", round(P117119, 2))),hjust = 1.2,vjust = 0.5, size = 4,
+    position = position_dodge(width = 0.9),
+    inherit.aes = TRUE, color = "white") +
+    scale_x_discrete(labels=c("Threshold: 24h" = "24h", "Threshold: 18h" = "18h",
+                              "Threshold: 12h" = "12h"))
+ 
+ plot_missing <- ggarrange(plot1, plot2, common.legend = TRUE)
 
 
 ggsave(
-  "plot_missingcount_poster.jpg",
-  plot = plot_missing_gps,
-  width = 14,
+  "plot_missingcount.png",
+  plot = plot_missing,
+  width = 20,
   height = 12,
   units = c("cm"),
   dpi = 300,
@@ -375,7 +443,7 @@ plot2 <- ggplot() +
 
 
  ggsave(
- "RSquared_new.jpg",
+ "RSquared_new.png",
  plot = plot2,
  width = 24.5,
  height = 11,
